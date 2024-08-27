@@ -1,20 +1,44 @@
 import {initQueue, modelSetup} from '../index.js';
 
-const {methods} = initQueue({
+const evQ = initQueue({
   //dbName: 'events.sqlite',
-  test:true
+  risky:true
 });
 
 const model = modelSetup({
-  //dbName : 'sample.sqlite'
+  reset : [''],
+  tables (db) {
+    db.query('CREATE TABLE variables (name TEXT PRIMARY KEY, value NUMBER)').run();
+  },
+  
+  queries (db) {
+    return {
+      store : db.query('INSERT INTO variables(name, value) VALUES ($name, $value) ON CONFLICT (name) DO UPDATE SET value = excluded.value'),
+      lookup : db.query('SELECT (value) FROM variables WHERE name = $name')
+    };
+  },
+
+  methods (queries) {
+    return {
+      store ({name, value}, ) {
+        queries.store.run({name, value})
+        return [`${name} is now ${value}`, 'stored'];
+      },
+        
+      add ({left, right, name}) {
+        let {value:l} = queries.lookup.get(left);
+        let {value:r} = queries.lookup.get(right) ||{};
+        let sum = l+r;
+        //console.log('left:', l, 'right', r, 'sum', sum)
+        queries.store.run({name, value:sum}); 
+        return [`${name}, as a result of addition, is now ${sum}`, 'added and stored'];
+      }
+    }
+  }
 });
 
 
-let db = model.db;
-db.query('DROP TABLE IF EXISTS variables').run();
-db.query('CREATE TABLE variables (name TEXT PRIMARY KEY, value NUMBER)').run();
-
-methods.reset();
+evQ.reset();
 
 let events = [
   ['store', {name: 'x', value:5}], 
@@ -24,40 +48,6 @@ let events = [
   ['add', {left:'z', right:'x', name:'w'}]
 ].map( ([cmd, data]) => ({cmd, data}));
 
-
-
-let modelMethods = [
-  ['store', 
-    ['all'], 
-    ({name, value}, state) => {
-      state.store.run({name, value});
-      return [`${name} is now ${value}`, 'stored'];
-    }
-  ],
-  ['add', 
-    ['all'], 
-    ({left, right, name}, state) => {
-        let {value:l} = state.lookup.get(left);
-        let {value:r} = state.lookup.get(right) ||{};
-        let sum = l+r;
-        console.log('left:', l, 'right', r, 'sum', sum)
-        state.store.run({name, value:sum}); 
-        return [`${name}, as a result of addition, is now ${sum}`, 'added and stored'];
-      }
-  ]
-];
-
-modelMethods.forEach( ([cmd, roles, executor]) => {
-  model.methods[cmd] = executor;
-  model.roles[cmd] = new Set(roles);
-});
-
-model.queries = {
-  ...model.queries,
-  store : db.query('INSERT INTO variables(name, value) VALUES ($name, $value) ON CONFLICT (name) DO UPDATE SET value = excluded.value'),
-  lookup : db.query('SELECT (value) FROM variables WHERE name = $name'),
-};
- 
 
 let cb = 
 { 
@@ -71,6 +61,6 @@ let cb =
 };
 
 events.forEach(
-  (item) => methods.store(item, model, cb)
+  (item) => evQ.store(item, model, cb)
 );
 

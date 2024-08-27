@@ -1,6 +1,6 @@
-import {initQueue, stubModel, stubCB} from "./event-source.js"
+import {initQueue, eventCallbacks} from "./event-source.js"
 import {modelSetup} from "./model.js";
 
 
-export {initQueue, stubModel, stubCB, modelSetup}
+export {initQueue, eventCallbacks, modelSetup}
 ;

@@ -1,38 +1,34 @@
 import {Database} from "bun:sqlite";
 
-const stubModel = {
-  authorize () {
-    return true;
-  }, 
-  queries : { }, 
-  methods : {
-    _default(data, _queries, row) {
+const eventCallbacks = {
+  stub: {
+    _error  (red ) {
+        const  {msg, error, cmd, data, ...row} = red;
+        console.log(msg, error, cmd, 'and then the data', data, 'and finally the rest of the row data', row );
+    },
+    _default(res, row) {
       const {cmd} = row;
-      console.log(`${cmd} is unknown to model.`, `The data is`, data);
-      return '';
+      console.log(`${cmd} sent to be processed by main program with response`,res, 'and data', row.data);
     } 
-
   }, 
-  roles : {
-    _default : ['all']
-  }
-};
 
-const stubCB = {
-  _error  (red ) {
-      const  {msg, error, cmd, data, ...row} = red;
-      console.log(msg, error, cmd, 'and then the data', data, 'and finally the rest of the row data', row );
+  void: {
+    _error  () { },
+    _default() { } 
   },
-  _default(res, row) {
-    const {cmd} = row;
-    console.log(`${cmd} sent to be processed by main program with response`,res, 'and data', row.data);
-  } 
+
+  error: {
+    _error  ({msg, error, cmd, data, ...row}) { 
+      console.log(msg, error, cmd, 'and then the data', data, 'and finally the rest of the row data', row );
+   },
+    _default() { } 
+  },
+
+  done : () => {}
+
 }
 
-const voidCB = {
-  _error  () { },
-  _default() { } 
-}
+
 
 //stateDB should have db which is open database connection, methods for executing commands, 
 //queries for storing db queries, and roles for saying who can do what commands. 
@@ -53,21 +49,29 @@ const initQueue = function ( options ={}) {
     getRowByID : db.query("SELECT id, datetime, user, ip, cmd, data FROM queue WHERE id = $id"),
     storeRow : db.query("INSERT INTO queue (datetime, user, ip, cmd, data) VALUES(datetime('now', 'localtime'),$user,$ip,$cmd,$data)"),
   }    
-    
+
   const methods = {
 
     retrieveByID(id) {
       return  queries.getRowByID.get({id});
     },
 
+
     async store({user ='', ip ='', cmd, data ={} }, model, cb) {
       if (!cmd) {
         cb._error({msg: `No command given; aborting`, priority: 2, user, ip, cmd, data});
         return;
       }
-      if (data.user_password) { //do it here to obscure storing in database
-        data.user_password = await ((hash) ? Bun.password.hash(data.user_password, hash) : Bun.password.hash(data.user_password));
-      }
+      // check for _hash_this key names and hash those, removing the _hash_this
+      Object.keys(data)
+        .filter( (key) => key.endsWith('_hash_this'))
+        .forEach( (key) => {
+          const trunc = key.slice(0,-10);
+          const pwd = data[key];
+          data[trunc] = await ( (hash) ? Bun.password.hash(pwd, hash): Bun.password.hash(pwd));
+          delete data[key];
+      });
+      
       const {lastInsertRowid:id, changes} = queries.storeRow.run({user, ip, cmd, data:JSON.stringify(data)});
       if (changes !== 1) {
         cb._error({msg: `rows changed was ${changes}. It should be 1. Executing last 1`, priority:1, user, ip, cmd, data, id});
@@ -137,4 +141,4 @@ const initQueue = function ( options ={}) {
 };
 
 
-export {initQueue, stubModel, stubCB, voidCB};
+export {initQueue, eventCallbacks};
