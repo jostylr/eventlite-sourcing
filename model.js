@@ -4,8 +4,8 @@ import { renameSync, unlinkSync } from "fs";
 
 const modelSetup = (options ={}) => {
 
-  const defult = options.default ?? ( (data, _queries, row) => {
-    const {cmd} = row;
+  const defult = options.default ?? ( (data, meta) => {
+    const {cmd} = meta;
     console.log(`${cmd} is unknown to model.`, `The data is`, data);
     return '';
   });
@@ -53,7 +53,21 @@ const modelSetup = (options ={}) => {
 return {_db: db, 
   _queries: qs,
   _default : defult,
-  ...ms
+  ...ms,
+  get (cmd, data) {
+    try {
+      return qs[cmd].get(data);
+    } catch (e) {
+      throw new Error(`Error in using query command ${cmd} with data ${data}`, {cause:e});
+    }
+  },
+  all (cmd, data) {
+    try {
+      return qs[cmd].all(data);
+    } catch (e) {
+      throw new Error(`Error in using query command ${cmd} with data ${data}`, {cause:e});
+    }
+  }, 
 }
 
 };
