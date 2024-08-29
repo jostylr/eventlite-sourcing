@@ -59,38 +59,15 @@ const initQueue = function ( options ={}) {
     },
 
 
-    async store({user ='', ip ='', cmd, data ={} }, model, cb) {
+    store({user ='', ip ='', cmd, data ={} }, model, cb) {
       if (!cmd) {
         cb._error({msg: `No command given; aborting`, priority: 2, user, ip, cmd, data});
         return;
       }
       if (!model) { model = this._model} //_model is default fallback to avoid having to always put in model
       if (!cb) {cb = this._cb} 
-      // check for _hash_this key names and hash those, removing the _hash_this
-      await Promise.all(
-        Object.keys(data)
-        .filter( (key) => key.endsWith('_hash_this'))
-        .map( async (key) => {
-          const trunc = key.slice(0,-10);
-          const pwd = data[key];
-          data[trunc] = await ( (hash) ? Bun.password.hash(pwd, hash): Bun.password.hash(pwd));
-          delete data[key];
-       })
-      );
-      
-      //const results = 
       const row = queries.storeRow.get({user, ip, cmd, data:JSON.stringify(data)});
-      /* doesn't seem to work just gives 0 for both
-      console.log(results);
-      const {lastInsertRowid:id, changes} = results;
-      if (changes !== 1) {
-        cb._error({msg: `rows changed was ${changes}. It should be 1. Executing last 1`, priority:1, user, ip, cmd, data, id});
-      }
-      */
-      //let row = queries.getLastRow.get();
-      //console.log(row);
       row.data = data; //JSON.parse(row.data);
-      //console.log(data, row, row.data, model, cb);
       return this.execute(row, model, cb);;  
     },
 
@@ -105,13 +82,6 @@ const initQueue = function ( options ={}) {
 // model: {queries, methods, roles, authorize}
   execute (row, model , cb) {
     const {id, datetime, user, ip, cmd, data} = row;
-    /*const roles = model.roles[cmd] ?? methods.roles._default;
-    let valid = model.authorize({user, ip, roles , data});
-    if (!valid) {
-      cb._error({ msg: `${user} at ${ip} is not authorized to invoke ${cmd}`, 
-        data, user, ip, roles, cmd, id, datetime});
-      return;
-    }*/
     let res; 
     try {
       if (model[cmd]) {
@@ -125,7 +95,7 @@ const initQueue = function ( options ={}) {
       return res; //may be useful info
     } catch (error) {
         cb._error({ msg: `${user} at ${ip} initiated  ${cmd} that led to an error: ${error.message}`, 
-          error, res, data, user, ip, /*roles,*/ cmd, id, datetime});
+          error, res, data, user, ip, cmd, id, datetime});
         return;
     }
   },
