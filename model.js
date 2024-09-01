@@ -14,7 +14,7 @@ const modelSetup = (options ={}) => {
     return {_queries : {}, _db: {}, _default:defult}
   }
 
-  const { dbName = "data/model.sqlite", init = {create:true, strict: true}, deletions = " ", tables, queries, methods } = options;
+  const { dbName = "data/model.sqlite", init = {create:true, strict: true}, deletions = " ", tables, queries, methods, done=null, error=null} = options;
   // this allows for wiping out existing model and starting fresh
   if (options.reset) {
     const reset = options.reset;
@@ -53,6 +53,8 @@ const modelSetup = (options ={}) => {
 return {_db: db, 
   _queries: qs,
   _default : defult,
+  _done : done ?? (() => {}), //row, res is arguments for recording that the event happened.
+  _error : done ?? (() => {}), // receives an error object for storing
   ...ms,
   get (cmd, data) {
     try {

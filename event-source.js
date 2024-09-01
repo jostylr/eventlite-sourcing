@@ -34,7 +34,8 @@ const eventCallbacks = {
 //queries for storing db queries, and roles for saying who can do what commands. 
 // options: {dbInit: {create:true, strict:true}, hash:{} for pwds, noWal:false}
 const initQueue = function ( options ={}) {
-  const { dbName = "data/events.sqlite", init = {create:true, strict: true}, hash } = options;
+  const { dbName = "data/events.sqlite", init = {create:true, strict: true}, hash, 
+  datetime = () => (new Date()).toString().split(' (')[0] } = options;
   const db = new Database(dbName, init);
   if (options.WAL) db.exec("PRAGMA journal_mode = WAL;");
   if (options.reset) {
@@ -45,9 +46,10 @@ const initQueue = function ( options ={}) {
 
   const queries = {
     create,
-    cycle : db.prepare("SELECT id, datetime, user, ip, cmd, data FROM queue WHERE id >= $id ORDER BY id LIMIT 1000 OFFSET $offset"),
+    cycle : db.prepare("SELECT id, datetime, user, ip, cmd, data FROM queue WHERE id >= $start ORDER BY id LIMIT 1000 OFFSET $offset"),
+    cycle : db.prepare("SELECT id, datetime, user, ip, cmd, data FROM queue WHERE id >= $start AND id < $stop ORDER BY id LIMIT 1000 OFFSET $offset"),
     getRowByID : db.prepare("SELECT id, datetime, user, ip, cmd, data FROM queue WHERE id = $id"),
-    storeRow : db.prepare("INSERT INTO queue (datetime, user, ip, cmd, data) VALUES(unixepoch('now'),$user,$ip,$cmd,$data) RETURNING *"),
+    storeRow : db.prepare("INSERT INTO queue (datetime, user, ip, cmd, data) VALUES($datetime,$user,$ip,$cmd,$data) RETURNING *"),
     getLastRow : db.prepare("SELECT id, datetime, user, ip, cmd, data FROM queue ORDER BY id DESC LIMIT 1")
 
   }    
@@ -66,7 +68,7 @@ const initQueue = function ( options ={}) {
       }
       if (!model) { model = this._model} //_model is default fallback to avoid having to always put in model
       if (!cb) {cb = this._cb} 
-      const row = queries.storeRow.get({user, ip, cmd, data:JSON.stringify(data)});
+      const row = queries.storeRow.get({datetime: datetime(), user, ip, cmd, data:JSON.stringify(data)});
       row.data = data; //JSON.parse(row.data);
       return this.execute(row, model, cb);;  
     },
@@ -92,18 +94,31 @@ const initQueue = function ( options ={}) {
         res = model._default(data, {datetime, user, ip, cmd, id});
       }
       (cb[cmd] ?? cb._default)(res, row); //res is whatever returned for cb to take an action. Probably some data and some webpages to update, notify
+      model._done(row, res);
       return res; //may be useful info
     } catch (error) {
-        cb._error({ msg: `${user} at ${ip} initiated  ${cmd} that led to an error: ${error.message}`, 
-          error, res, data, user, ip, cmd, id, datetime});
+        const errObj = { msg: `${user} at ${ip} initiated  ${cmd} that led to an error: ${error.message}`, 
+          error, res, data, user, ip, cmd, id, datetime}
+        cb._error(errObj);
+        model._error(errObj);
         return;
     }
   },
 
-  cycleThrough(model, doneCB, whileCB = voidCB, rowid = 0) {
+  cycleThrough(model, doneCB, whileCB = voidCB, {start, stop} = {start:0, stop:null}) {
     let offset = 0;
+    let fun;
+    if (stop) {
+      if (typeof stop === 'number') {
+        fun = queries.cycleStop;
+      } else if (typeof stop === 'string') {
+        //figure out a date thing
+      }
+    } else {
+       fun = queries.cycle
+    }
     while (true) {
-      let results =  queries.cycle.all({id:rowid, offset});
+      let results =  fun.all({offset, start, stop});
       //console.log(results);
       if (!results.length) {break;}
       for (const row of results) {
