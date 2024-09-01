@@ -49,6 +49,14 @@ const modelSetup = (options ={}) => {
 
   const qs = queries(db);
   const ms = methods(qs);
+  //transactions that should be added methods start with underscore
+  Object.keys(qs).filter( (key) => key[0] === '_').
+  forEach( (key) => {
+    ms[key.slice(1)] = function (data, evq_data) {
+      return qs[key](data, evq_data);
+    }
+  });
+  //console.log(Object.keys(qs), Object.keys(ms));
 
 return {_db: db, 
   _queries: qs,
