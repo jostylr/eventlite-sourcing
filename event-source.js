@@ -62,14 +62,14 @@ const initQueue = function ( options ={}) {
 
 
     store({user ='', ip ='', cmd, data ={} }, model, cb) {
+      if (!model) { model = this._model} //_model is default fallback to avoid having to always put in model
+      if (!cb) {cb = this._cb} 
       if (!cmd) {
         cb._error({msg: `No command given; aborting`, priority: 2, user, ip, cmd, data});
         return;
       }
-      if (!model) { model = this._model} //_model is default fallback to avoid having to always put in model
-      if (!cb) {cb = this._cb} 
       const row = queries.storeRow.get({datetime: datetime(), user, ip, cmd, data:JSON.stringify(data)});
-      row.data = data; //JSON.parse(row.data);
+      row.data = JSON.parse(row.data); //Would use the raw data, but this ensures that this is replayable as stringify to parse is not idempotent for odd cases
       return this.execute(row, model, cb);;  
     },
 
