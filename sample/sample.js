@@ -14,6 +14,7 @@ const model = modelSetup({
   queries (db) {
     return {
       store : db.query('INSERT INTO variables(name, value) VALUES ($name, $value) ON CONFLICT (name) DO UPDATE SET value = excluded.value'),
+      storeq : db.query('INSERT INTO variables(name, value) VALUES ($name, $value) ON CONFLICT (name) DO UPDATE SET value = excluded.value'),
       lookup : db.query('SELECT (value) FROM variables WHERE name = $name')
     };
   },
@@ -42,7 +43,7 @@ evQ.reset();
 
 let events = [
   ['store', {name: 'x', value:5}], 
-  ['store', {name: 'y', value:7}],
+  ['storeq', {name: 'y', value:9}],
   ['add', {left: 'x', right:'y', name:'z'}],
   ['store', {name:'x', value:8}],
   ['add', {left:'z', right:'x', name:'w'}]
