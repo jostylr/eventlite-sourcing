@@ -81,7 +81,7 @@ const initQueue = function ( options ={}) {
 // the state should be a database that the method will manipulate
 // the cb is a callback that activates any notifications, etc that need to happen
 // cb should habe an error method which can be null to suppress any error stuff
-// model: {queries, methods, roles, authorize}
+// model: {queries, methods}
   execute (row, model , cb) {
     const {id, datetime, user, ip, cmd, data} = row;
     let res; 

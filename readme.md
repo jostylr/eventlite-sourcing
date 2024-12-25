@@ -27,13 +27,15 @@ initQueue returns an object {queries, methods}. The queries are for the db queri
 
 This is the interface to, presumably, another sqlite database, but it could be whatever. The idea is that this is the backend with the data in a stored form for easy retrieval. The events are storing data for easy replay while the model is the current state.
 
-It should be an object with an authorize function, queries object, methods object, and roles object. The methods and and roles object should have a `_default` key that tells what to do when a command is not recognized. The `roles[cmd]` should be an array with the roles that are allowed, coordinated with the authorize function. The authorize function says whether a command can be executed with the given data info. It takes the argument object `{user, ip, roles, data}`.
+It should be an object with a queries object, methods object. The methods object should have a `_default` key that tells what to do when a command is not recognized. Authorization and roles should all be handled prior to the event saving. A tables function can be passed to set up the tables for use in the model databse.
 
 Methods are given `data, model.queries, {datetime, user, ip, cmd, id}` That last stuff is the row minus the data. The queries object allows the function to access the queries to the database that have been defined. Otherwise, it can't see the database.
 
 Queries can be used however, but the presumption is that they are db.query objects.
 
 The file model.js exports the function modelSetup which takes in some options (dbName: database name for model, WAL mode if desired, init for initiating the database). The modelSetup creates a model with several premade queries and methods.
+
+The parsing is in part `dbName = "data/model.sqlite", init = {create:true, strict: true}, deletions = " ", tables, queries, methods, done=null, error=null}` . One can also pass in a default function for processing unknown commands. If the stub:true option is passed in, then it .
 
 ### CB
 
@@ -44,7 +46,3 @@ It should be an object which takes in a command and produces a callback function
 The whileCB in the cycleThrough is modelled the same way though typically, one would not want to act on most of that. The doneCB takes no arguments. One can think of it as a "compile all static assets and assume everything has changed".
 
 The callback should have an `_error` method and a `_default` method. The default takes in the same arguments and is just there to catch any undefined behavior. The error method takes in a single object why has `{msg, data, user, ip, roles, cm, id, datetime}` at a minimum (row data and a message). If the error was an actual error thrown while processing the particular exceutions, then it also includes the error object as error and the response res which is probably undefined, but could be defined depending on where the error happened.
-
-## User Setup and Access
-
-## Emails and Push Notifications
