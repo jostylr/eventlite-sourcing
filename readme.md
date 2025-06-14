@@ -46,3 +46,33 @@ It should be an object which takes in a command and produces a callback function
 The whileCB in the cycleThrough is modelled the same way though typically, one would not want to act on most of that. The doneCB takes no arguments. One can think of it as a "compile all static assets and assume everything has changed".
 
 The callback should have an `_error` method and a `_default` method. The default takes in the same arguments and is just there to catch any undefined behavior. The error method takes in a single object why has `{msg, data, user, ip, roles, cm, id, datetime}` at a minimum (row data and a message). If the error was an actual error thrown while processing the particular exceutions, then it also includes the error object as error and the response res which is probably undefined, but could be defined depending on where the error happened.
+
+## Testing
+
+This project includes comprehensive tests using Bun's built-in test runner. The test suite achieves 97.83% code coverage.
+
+### Running Tests
+
+```bash
+# Run all tests
+bun test
+
+# Run tests in watch mode
+bun test --watch
+
+# Run tests with coverage report
+bun test --coverage
+
+# Run a specific test file
+bun test tests/event-source.test.js
+```
+
+### Test Structure
+
+- `tests/event-source.test.js` - Core event sourcing functionality
+- `tests/model.test.js` - Model setup and management
+- `tests/integration.test.js` - End-to-end scenarios
+- `tests/sample.test.js` - Sample implementation validation
+- `tests/index.test.js` - Module exports
+
+See `tests/README.md` for detailed testing documentation.
