@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
-import { renameSync, unlinkSync } from "fs";
+import { renameSync, unlinkSync, existsSync, mkdirSync } from "fs";
+import { dirname } from "path";
 
 const modelSetup = (options = {}) => {
   const defult =
@@ -66,6 +67,13 @@ const modelSetup = (options = {}) => {
       console.error("Error munging files:", error, oldName, newName);
     }
   }
+
+  // Ensure the directory exists
+  const dbDir = dirname(dbName);
+  if (!existsSync(dbDir)) {
+    mkdirSync(dbDir, { recursive: true });
+  }
+
   const db = new Database(dbName, init);
   if (options.WAL) db.exec("PRAGMA journal_mode = WAL;");
 

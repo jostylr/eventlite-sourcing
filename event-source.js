@@ -1,4 +1,6 @@
 import { Database } from "bun:sqlite";
+import { existsSync, mkdirSync } from "fs";
+import { dirname } from "path";
 
 const eventCallbacks = {
   stub: {
@@ -58,6 +60,13 @@ const initQueue = function (options = {}) {
     hash,
     datetime = () => Date.now(), // old default,but want seconds for poratability (new Date()).toString().split(' (')[0] }
   } = options;
+
+  // Ensure the directory exists
+  const dbDir = dirname(dbName);
+  if (!existsSync(dbDir)) {
+    mkdirSync(dbDir, { recursive: true });
+  }
+
   const db = new Database(dbName, init);
   if (options.WAL) db.exec("PRAGMA journal_mode = WAL;");
   if (options.reset) {
