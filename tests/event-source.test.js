@@ -1,13 +1,19 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { initQueue, eventCallbacks } from "../event-source.js";
-import { existsSync, rmSync } from "fs";
-import { join } from "path";
+import { existsSync, rmSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
 
 describe("Event Source", () => {
   const testDbPath = join("tests", "data", "test-events.sqlite");
   let queue;
 
   beforeEach(() => {
+    // Ensure the data directory exists
+    const dataDir = dirname(testDbPath);
+    if (!existsSync(dataDir)) {
+      mkdirSync(dataDir, { recursive: true });
+    }
+
     // Clean up any existing test database
     if (existsSync(testDbPath)) {
       rmSync(testDbPath);

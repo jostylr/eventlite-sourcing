@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { modelSetup } from "../model.js";
-import { existsSync, rmSync } from "fs";
-import { join } from "path";
+import { existsSync, rmSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
 
 describe("Model Setup", () => {
   const testDbPath = join("tests", "data", "test-model.sqlite");
@@ -9,6 +9,12 @@ describe("Model Setup", () => {
   let model;
 
   beforeEach(() => {
+    // Ensure the data directory exists
+    const dataDir = dirname(testDbPath);
+    if (!existsSync(dataDir)) {
+      mkdirSync(dataDir, { recursive: true });
+    }
+
     // Clean up any existing test databases
     if (existsSync(testDbPath)) {
       rmSync(testDbPath);

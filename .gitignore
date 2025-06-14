@@ -46,3 +46,5 @@ public/main.css
 bun.lockb
 
 *.sqlite
+*.sqlite-shm
+*.sqlite-wal

@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { initQueue, eventCallbacks, modelSetup } from "../index.js";
-import { existsSync, rmSync } from "fs";
-import { join } from "path";
+import { existsSync, rmSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
 
 describe("Event Sourcing Integration Tests", () => {
   const testEventDbPath = join(
@@ -18,6 +18,12 @@ describe("Event Sourcing Integration Tests", () => {
   let model;
 
   beforeEach(() => {
+    // Ensure the data directory exists
+    const dataDir = dirname(testEventDbPath);
+    if (!existsSync(dataDir)) {
+      mkdirSync(dataDir, { recursive: true });
+    }
+
     // Clean up any existing test databases
     if (existsSync(testEventDbPath)) {
       rmSync(testEventDbPath);
