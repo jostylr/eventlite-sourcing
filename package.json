@@ -1,13 +1,52 @@
 {
   "name": "eventlite-sourcing",
   "version": "0.1.0",
+  "description": "A lightweight, fast event sourcing library built with Bun and SQLite for Node.js applications",
   "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
   "scripts": {
     "test": "bun test",
     "test:watch": "bun test --watch",
-    "test:coverage": "bun test --coverage"
+    "test:coverage": "bun test --coverage",
+    "example:user": "bun run examples/user-management.js",
+    "example:sample": "bun run sample/sample.js"
+  },
+  "keywords": [
+    "event-sourcing",
+    "event-store",
+    "sqlite",
+    "bun",
+    "audit-trail",
+    "cqrs",
+    "event-driven",
+    "database",
+    "lightweight"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/eventlite-sourcing.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/eventlite-sourcing/issues"
+  },
+  "homepage": "https://github.com/yourusername/eventlite-sourcing#readme",
+  "engines": {
+    "bun": ">=1.0.0"
   },
   "devDependencies": {
     "bun-types": "latest"
-  }
+  },
+  "files": [
+    "index.js",
+    "event-source.js",
+    "model.js",
+    "README.md",
+    "LICENSE",
+    "docs/"
+  ]
 }

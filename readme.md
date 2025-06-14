@@ -1,55 +1,371 @@
-# Basic Database Setup
+# EventLite Sourcing
 
-## Events Sourcing
+A lightweight event sourcing library for Node.js and Bun, built on SQLite. EventLite provides a simple, reliable way to implement event sourcing patterns in your applications with minimal overhead.
 
-This is my attempt to make a quick and easy event recording db that is a simple system for storing commands and their data to be reissued.
+[![Tests](https://github.com/yourusername/eventlite-sourcing/actions/workflows/test.yml/badge.svg)](https://github.com/yourusername/eventlite-sourcing/actions/workflows/test.yml)
+[![Coverage](https://img.shields.io/badge/coverage-97.83%25-brightgreen.svg)](https://github.com/yourusername/eventlite-sourcing)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-This will have a databse initializer whose main (only) table is the queue and uses rowid as id, datetime, user, ip address, cmd, data
+## Features
 
-To use, import initQueue and call it with an object that has options:
+- 🚀 **Lightweight & Fast** - Built on SQLite with minimal dependencies
+- 📝 **Event Replay** - Rebuild state from any point in history
+- 🔒 **Built-in Security** - Password hashing and user/IP tracking
+- 🧪 **Well Tested** - 97.83% code coverage
+- 🎯 **Simple API** - Easy to understand and use
+- 🔄 **Flexible Models** - Adapt to any data structure
 
-- dbname is the filename for the sqlite file to house the event log. default: data/events.sqlite
-- init is the set of options to pass to sqlite. default: create:true, strict:true. [bun's sqlite](https://bun.sh/docs/api/sqlite)
-- hash is an object that one can pass options for the algorithms. default: none. [bun's options](https://bun.sh/docs/api/hashing#bun-password)
-- noWAL. Set to true to not have Write Ahead Log mode. Typically recommended to have WAL but probably doesn't matter in this case as this is super simple.
-- test. If true, it will add a reset function on the methods allowing one to wipe out the log. Just use this for testing. Seriously.
+## Table of Contents
 
-initQueue returns an object {queries, methods}. The queries are for the db queries directly. This should probably not be accessed. The methods object returns:
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Core Concepts](#core-concepts)
+- [API Reference](#api-reference)
+- [Examples](#examples)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [License](#license)
 
-- `retrieveByID(id):row`. Given a rowid, retrieves an event. Probably not needed outside of the internals.
-- `async store({user ='', ip ='', cmd, data ={}}, model, cb):void`
-  This does the actual storing. user and ip help track what is going on and used in authorization. The cmd is a string and should match a function name on the model being used. Data is whatever should be passed into that function.The model and cb parameters are passed along to execute. See that one.
-  Store is async as it hashes the value of user_password if present in the data. This is async operation.
-- `async execute(row, model, cb):void`. Row is the event row object stored in the db. It consists of the user, ip address, cmd, data, and datetime. Model is the interface to the changing database that the events are manipulating. See the model section below. The callback cb is an object which is explained under callback
-- `cycleThrough(model, doneCB, whileCB, rowid):void`. This is how one can loop through a bunch of already stored events and execute them to evolve the model. doneCB will be called once the loop is done. the whileCB is called after each event; this is a do-nothing by default if nothing is provided; it should be similar setup as the execute function's cb. rowid is a starting place if one wants to start at a particular row.
+## Installation
 
-### Model
+```bash
+# Using Bun
+bun add eventlite-sourcing
 
-This is the interface to, presumably, another sqlite database, but it could be whatever. The idea is that this is the backend with the data in a stored form for easy retrieval. The events are storing data for easy replay while the model is the current state.
+# Using npm
+npm install eventlite-sourcing
 
-It should be an object with a queries object, methods object. The methods object should have a `_default` key that tells what to do when a command is not recognized. Authorization and roles should all be handled prior to the event saving. A tables function can be passed to set up the tables for use in the model databse.
+# Using yarn
+yarn add eventlite-sourcing
+```
 
-Methods are given `data, model.queries, {datetime, user, ip, cmd, id}` That last stuff is the row minus the data. The queries object allows the function to access the queries to the database that have been defined. Otherwise, it can't see the database.
+## Quick Start
 
-Queries can be used however, but the presumption is that they are db.query objects.
+```javascript
+import { initQueue, modelSetup } from 'eventlite-sourcing';
 
-The file model.js exports the function modelSetup which takes in some options (dbName: database name for model, WAL mode if desired, init for initiating the database). The modelSetup creates a model with several premade queries and methods.
+// 1. Initialize the event queue
+const eventQueue = initQueue({
+  dbName: 'data/events.sqlite'
+});
 
-The parsing is in part `dbName = "data/model.sqlite", init = {create:true, strict: true}, deletions = " ", tables, queries, methods, done=null, error=null}` . One can also pass in a default function for processing unknown commands. If the stub:true option is passed in, then it .
+// 2. Set up your model (the current state database)
+const model = modelSetup({
+  dbName: 'data/model.sqlite',
+  tables(db) {
+    db.query('CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT)').run();
+  },
+  queries(db) {
+    return {
+      createUser: db.query('INSERT INTO users (name, email) VALUES ($name, $email)'),
+      getUser: db.query('SELECT * FROM users WHERE id = $id')
+    };
+  },
+  methods(queries) {
+    return {
+      createUser({ name, email }) {
+        const result = queries.createUser.run({ name, email });
+        return { userId: result.lastInsertRowid, name, email };
+      }
+    };
+  }
+});
 
-### CB
+// 3. Define callbacks for events
+const callbacks = {
+  createUser(result, row) {
+    console.log(`User created: ${result.name} at ${row.datetime}`);
+  },
+  _default(result, row) {
+    console.log(`Event ${row.cmd} processed`);
+  },
+  _error({ msg, error }) {
+    console.error(`Error: ${msg}`, error);
+  }
+};
 
-The envisioned use of the callback is to trigger new webpage generations and to notify listeners of changes.
+// 4. Store and execute events
+await eventQueue.store(
+  { cmd: 'createUser', data: { name: 'Alice', email: 'alice@example.com' } },
+  model,
+  callbacks
+);
 
-It should be an object which takes in a command and produces a callback function that should accept (res, row) arguments where row is the all the inputs stored in the event and the res is whatever the model methods may have returned, if anything.
+// 5. Replay events to rebuild state
+eventQueue.cycleThrough(model, () => console.log('Replay complete'), callbacks);
+```
 
-The whileCB in the cycleThrough is modelled the same way though typically, one would not want to act on most of that. The doneCB takes no arguments. One can think of it as a "compile all static assets and assume everything has changed".
+## Core Concepts
 
-The callback should have an `_error` method and a `_default` method. The default takes in the same arguments and is just there to catch any undefined behavior. The error method takes in a single object why has `{msg, data, user, ip, roles, cm, id, datetime}` at a minimum (row data and a message). If the error was an actual error thrown while processing the particular exceutions, then it also includes the error object as error and the response res which is probably undefined, but could be defined depending on where the error happened.
+### Event Sourcing
+
+Event sourcing is a pattern where all changes to application state are stored as a sequence of events. Instead of storing just the current state, you store all the events that led to that state. This provides:
+
+- **Complete audit trail** - Every change is recorded with who, what, when, and why
+- **Time travel** - Rebuild state at any point in history
+- **Debugging** - Replay events to reproduce issues
+- **Analytics** - Analyze patterns in how your system is used
+
+### Events vs State
+
+- **Events** - Immutable records of things that happened (stored in the event queue)
+- **State** - The current view of your data (stored in the model database)
+
+### The Event Queue
+
+The event queue is an append-only log of all events. Each event contains:
+
+- `id` - Unique identifier (SQLite rowid)
+- `datetime` - When the event occurred
+- `user` - Who triggered the event
+- `ip` - Where the event came from
+- `cmd` - What command to execute
+- `data` - The data for the command
+
+### The Model
+
+The model represents your current state and defines:
+
+- **Tables** - Database schema for your state
+- **Queries** - Prepared statements for database operations
+- **Methods** - Functions that process events and update state
+
+### Callbacks
+
+Callbacks handle side effects when events are processed:
+
+- Send notifications
+- Update caches
+- Trigger webhooks
+- Generate static files
+
+## API Reference
+
+### `initQueue(options)`
+
+Initialize an event queue with the following options:
+
+- `dbName` (string) - Path to SQLite database file (default: `'data/events.sqlite'`)
+- `init` (object) - SQLite initialization options (default: `{ create: true, strict: true }`)
+- `hash` (object) - Password hashing options (optional)
+- `noWAL` (boolean) - Disable Write-Ahead Logging (default: `false`)
+- `risky` (boolean) - Enable test mode with reset function (default: `false`)
+
+Returns an object with:
+
+- `queries` - Direct access to database queries (internal use)
+- `methods` - Event queue methods (see below)
+
+### Event Queue Methods
+
+#### `async store({ user, ip, cmd, data }, model, callback)`
+
+Store and execute an event.
+
+- `user` (string) - User identifier (optional)
+- `ip` (string) - IP address (optional)
+- `cmd` (string) - Command name (must match a model method)
+- `data` (object) - Data to pass to the command
+- `model` (object) - The model to execute against
+- `callback` (object) - Callbacks for handling results
+
+#### `async execute(row, model, callback)`
+
+Execute a previously stored event.
+
+- `row` (object) - Event row from the database
+- `model` (object) - The model to execute against
+- `callback` (object) - Callbacks for handling results
+
+#### `retrieveByID(id)`
+
+Get a specific event by its ID.
+
+- `id` (number) - The event ID (rowid)
+
+Returns the event row or undefined.
+
+#### `cycleThrough(model, doneCB, whileCB, startId)`
+
+Replay events from the queue.
+
+- `model` (object) - The model to execute against
+- `doneCB` (function) - Called when replay is complete
+- `whileCB` (object) - Callbacks for each event (optional)
+- `startId` (number) - Start replay from this event ID (optional)
+
+### `modelSetup(options)`
+
+Create a model with the following options:
+
+- `dbName` (string) - Path to model database (default: `'data/model.sqlite'`)
+- `init` (object) - SQLite initialization options
+- `noWAL` (boolean) - Disable Write-Ahead Logging
+- `tables` (function) - Function to create database tables
+- `queries` (function) - Function to create prepared queries
+- `methods` (function) - Function to create event handlers
+- `reset` (array) - Reset options: `['move']`, `['rename']`, or `['delete']`
+- `done` (function) - Success callback (optional)
+- `error` (function) - Error callback (optional)
+- `stub` (boolean) - Create a stub model for testing
+
+### Callback Object Structure
+
+```javascript
+{
+  // Handle specific commands
+  commandName(result, row) {
+    // result: what the model method returned
+    // row: the event data (user, ip, cmd, data, datetime, id)
+  },
+  
+  // Handle any unspecified commands
+  _default(result, row) {
+    // Default handler
+  },
+  
+  // Handle errors
+  _error({ msg, error, cmd, data, user, ip, datetime, id, res }) {
+    // Error handler
+  }
+}
+```
+
+### Pre-built Callbacks
+
+EventLite provides some pre-built callback objects:
+
+- `eventCallbacks.stub` - Logs all events to console
+- `eventCallbacks.void` - No-op callbacks (silent operation)
+- `eventCallbacks.error` - Only logs errors
+- `eventCallbacks.done` - Simple completion callback
+
+## Examples
+
+### User Management System
+
+```javascript
+import { initQueue, modelSetup } from 'eventlite-sourcing';
+
+const eventQueue = initQueue({
+  dbName: 'data/user-events.sqlite',
+  hash: { algorithm: 'argon2id' } // Enable password hashing
+});
+
+const userModel = modelSetup({
+  dbName: 'data/users.sqlite',
+  tables(db) {
+    db.query(`
+      CREATE TABLE users (
+        id INTEGER PRIMARY KEY,
+        username TEXT UNIQUE,
+        email TEXT,
+        password_hash TEXT,
+        created_at INTEGER,
+        updated_at INTEGER
+      )
+    `).run();
+  },
+  queries(db) {
+    return {
+      createUser: db.query('INSERT INTO users (username, email, password_hash, created_at) VALUES ($username, $email, $password_hash, $created_at)'),
+      updateEmail: db.query('UPDATE users SET email = $email, updated_at = $updated_at WHERE username = $username'),
+      getUser: db.query('SELECT id, username, email FROM users WHERE username = $username')
+    };
+  },
+  methods(queries) {
+    return {
+      createUser({ username, email, user_password }, _, { datetime }) {
+        // Password is automatically hashed if hash option is enabled
+        queries.createUser.run({
+          username,
+          email,
+          password_hash: user_password, // This will be the hash
+          created_at: Date.parse(datetime)
+        });
+        return { success: true, username };
+      },
+      
+      updateEmail({ username, email }, _, { datetime }) {
+        queries.updateEmail.run({
+          username,
+          email,
+          updated_at: Date.parse(datetime)
+        });
+        return { success: true, username, email };
+      }
+    };
+  }
+});
+
+// Usage
+await eventQueue.store({
+  user: 'admin',
+  ip: '192.168.1.1',
+  cmd: 'createUser',
+  data: {
+    username: 'alice',
+    email: 'alice@example.com',
+    user_password: 'secretpassword' // Will be hashed automatically
+  }
+}, userModel, eventCallbacks.stub);
+```
+
+### Shopping Cart with Event Replay
+
+```javascript
+const cartModel = modelSetup({
+  tables(db) {
+    db.query('CREATE TABLE carts (user_id TEXT PRIMARY KEY, items TEXT, total REAL)').run();
+  },
+  queries(db) {
+    return {
+      getCart: db.query('SELECT * FROM carts WHERE user_id = $userId'),
+      saveCart: db.query('INSERT OR REPLACE INTO carts (user_id, items, total) VALUES ($userId, $items, $total)')
+    };
+  },
+  methods(queries) {
+    return {
+      addItem({ userId, item, price }) {
+        const cart = queries.getCart.get({ userId }) || { items: '[]', total: 0 };
+        const items = JSON.parse(cart.items);
+        items.push({ item, price });
+        const total = items.reduce((sum, i) => sum + i.price, 0);
+        
+        queries.saveCart.run({
+          userId,
+          items: JSON.stringify(items),
+          total
+        });
+        
+        return { userId, itemCount: items.length, total };
+      },
+      
+      clearCart({ userId }) {
+        queries.saveCart.run({
+          userId,
+          items: '[]',
+          total: 0
+        });
+        return { userId, cleared: true };
+      }
+    };
+  }
+});
+
+// Replay events from a specific point
+const checkpointId = 1000;
+eventQueue.cycleThrough(
+  cartModel,
+  () => console.log('Cart state rebuilt'),
+  eventCallbacks.void,
+  checkpointId
+);
+```
 
 ## Testing
 
-This project includes comprehensive tests using Bun's built-in test runner. The test suite achieves 97.83% code coverage.
+EventLite includes a comprehensive test suite with 97.83% code coverage.
 
 ### Running Tests
 
@@ -60,19 +376,59 @@ bun test
 # Run tests in watch mode
 bun test --watch
 
-# Run tests with coverage report
+# Run tests with coverage
 bun test --coverage
 
 # Run a specific test file
 bun test tests/event-source.test.js
 ```
 
-### Test Structure
+### Writing Tests
 
-- `tests/event-source.test.js` - Core event sourcing functionality
-- `tests/model.test.js` - Model setup and management
-- `tests/integration.test.js` - End-to-end scenarios
-- `tests/sample.test.js` - Sample implementation validation
-- `tests/index.test.js` - Module exports
+```javascript
+import { initQueue, modelSetup } from 'eventlite-sourcing';
 
-See `tests/README.md` for detailed testing documentation.
+describe('My Feature', () => {
+  let eventQueue;
+  let model;
+  
+  beforeEach(() => {
+    eventQueue = initQueue({ dbName: ':memory:', risky: true });
+    model = modelSetup({ dbName: ':memory:', stub: true });
+  });
+  
+  afterEach(() => {
+    eventQueue.reset();
+  });
+  
+  test('should process events correctly', async () => {
+    const result = await eventQueue.store(
+      { cmd: 'testCmd', data: { value: 42 } },
+      model,
+      eventCallbacks.void
+    );
+    
+    expect(result).toBeDefined();
+  });
+});
+```
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Development Setup
+
+1. Clone the repository
+2. Install dependencies: `bun install`
+3. Run tests: `bun test`
+4. Make your changes
+5. Submit a pull request
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+Built with [Bun](https://bun.sh) and [SQLite](https://sqlite.org/).
