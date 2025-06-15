@@ -2,8 +2,8 @@
 
 A lightweight event sourcing library for Node.js and Bun, built on SQLite. EventLite provides a simple, reliable way to implement event sourcing patterns in your applications with minimal overhead.
 
-[![Tests](https://github.com/yourusername/eventlite-sourcing/actions/workflows/test.yml/badge.svg)](https://github.com/yourusername/eventlite-sourcing/actions/workflows/test.yml)
-[![Coverage](https://img.shields.io/badge/coverage-97.83%25-brightgreen.svg)](https://github.com/yourusername/eventlite-sourcing)
+[![Tests](https://github.com/jostylr/eventlite-sourcing/actions/workflows/test.yml/badge.svg)](https://github.com/jostylr/eventlite-sourcing/actions/workflows/test.yml)
+[![Coverage](https://img.shields.io/badge/coverage-97.83%25-brightgreen.svg)](https://github.com/jostylr/eventlite-sourcing)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## Features
