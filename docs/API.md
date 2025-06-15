@@ -24,6 +24,13 @@ This document provides a comprehensive reference for all functions, methods, and
   - [Event Row](#event-row)
   - [Model Object](#model-object)
   - [Error Object](#error-object)
+- [Event Helpers API](#event-helpers-api)
+  - [PatternedEventStore](#patternedeventstore)
+  - [EventChainBuilder](#eventchainbuilder)
+  - [EventPatternQueries](#eventpatternqueries)
+  - [EventPatternValidator](#eventpatternvalidator)
+  - [CorrelationContext](#correlationcontext)
+  - [Factory Functions](#factory-functions)
 
 ## Core Functions
 
@@ -964,6 +971,35 @@ class OrderSaga {
 3. Use try-catch in complex methods
 4. Log errors for debugging
 5. Consider error recovery strategies
+6. For non-deterministic operations, handle both generation and replay scenarios
+
+### Best Practices for Internal Events
+
+1. **Deterministic by Default**: Most internal events should be deterministic
+2. **Store Random Values**: When randomness is needed, generate and store the value in the event
+3. **Document Non-Determinism**: Clearly indicate which events involve randomness
+4. **Idempotent Methods**: Model methods should handle replay correctly
+5. **Time Handling**: Store timestamps in events rather than using "now" in methods
+
+```javascript
+// Model method example
+methods(queries) {
+  return {
+    generateApiKey(data, context) {
+      // Use the stored key during replay
+      const apiKey = data.apiKey || generateNewApiKey();
+      
+      queries.insertApiKey.run({
+        userId: data.userId,
+        apiKey: apiKey,
+        createdAt: data.createdAt || context.datetime
+      });
+      
+      return { apiKey };
+    }
+  };
+}
+```
 
 ```javascript
 methods(queries) {
@@ -992,4 +1028,586 @@ methods(queries) {
     }
   };
 }
+```
+
+## Replay Mechanics
+
+### cycleThrough
+
+The `cycleThrough` method replays events from the event queue through the model.
+
+```javascript
+eventQueue.cycleThrough(model, doneCB, whileCB, options)
+```
+
+#### Parameters
+
+- `model` - The model to replay events through
+- `doneCB` - Callback function called when replay is complete
+- `whileCB` (optional) - Callbacks to use during replay (default: `eventCallbacks.void`)
+- `options` (optional) - Replay options
+  - `start` (number) - Event ID to start from (default: 0)
+  - `stop` (number) - Event ID to stop at (optional)
+
+#### Replay Behavior
+
+1. **Data Preservation**: Event data is stored in JSON format and parsed during replay
+2. **Method Execution**: Model methods receive the exact stored data
+3. **No New Events**: During replay, use `eventCallbacks.void` to prevent side effects
+4. **Sequential Processing**: Events are replayed in order by ID
+
+#### Example: Full Rebuild
+
+```javascript
+// Reset model state
+model.reset();
+
+// Replay all events without side effects
+eventQueue.cycleThrough(
+  model,
+  () => console.log('Rebuild complete'),
+  eventCallbacks.void
+);
+```
+
+#### Example: Partial Replay
+
+```javascript
+// Replay specific range
+eventQueue.cycleThrough(
+  model,
+  () => console.log('Partial replay complete'),
+  eventCallbacks.void,
+  { start: 1000, stop: 2000 }
+);
+```
+
+### Handling Non-Deterministic Values
+
+For operations involving randomness, generate values before storing the event:
+
+```javascript
+// Generate random values at event creation time
+const event = {
+  user: 'system',
+  cmd: 'generateApiKey',
+  data: {
+    userId: 'USER-123',
+    apiKey: crypto.randomUUID(),        // Generated once
+    expiresAt: Date.now() + 86400000,   // Calculated once
+    salt: crypto.randomBytes(16).toString('hex')
+  }
+};
+
+await eventQueue.store(event, model, callbacks);
+
+// Model method uses stored values
+methods(queries) {
+  return {
+    generateApiKey({ userId, apiKey, expiresAt, salt }) {
+      // Values come from event data during both normal execution and replay
+      const hash = hashWithSalt(apiKey, salt);
+      queries.storeApiKey.run({ userId, hash, expiresAt });
+      return { userId, apiKey, expiresAt };
+    }
+  };
+}
+```
+
+### Replay-Safe Model Methods
+
+Model methods should be deterministic given their input:
+
+```javascript
+methods(queries) {
+  return {
+    // ✅ GOOD: Uses data from event
+    createToken({ userId, token, expiresAt }) {
+      queries.insertToken.run({ userId, token, expiresAt });
+      return { userId, token };
+    },
+    
+    // ❌ BAD: Generates data in method
+    createTokenBad({ userId }) {
+      const token = crypto.randomUUID(); // Different on each replay!
+      const expiresAt = Date.now() + 3600000; // Different on each replay!
+      queries.insertToken.run({ userId, token, expiresAt });
+      return { userId, token };
+    }
+  };
+}
+```
+
+### Preventing Side Effects During Replay
+
+Use different callbacks for normal operation vs replay:
+
+```javascript
+// Normal operation with side effects
+const normalCallbacks = {
+  userCreated({ userId, email }) {
+    sendWelcomeEmail(email);
+    notifyAdmins(userId);
+  },
+  orderPlaced({ orderId }) {
+    sendOrderConfirmation(orderId);
+    updateInventory(orderId);
+  },
+  _error(err) {
+    alertOps(err);
+  }
+};
+
+// Replay callbacks - no side effects
+const replayCallbacks = eventCallbacks.void;
+
+// Or selective replay callbacks
+const selectiveReplayCallbacks = {
+  _error(err) {
+    console.error('Replay error:', err);
+  },
+  _default() {}, // Silent for most events
+  criticalEvent(data) {
+    console.log('Replaying critical event:', data);
+  }
+};
+```
+
+## Event Helpers API
+
+The `event-helpers` module provides utilities for enforcing event patterns and managing complex correlations. Import from `eventlite-sourcing/lib/event-helpers.js`.
+
+### PatternedEventStore
+
+A wrapper around the event queue that enforces external/internal event patterns.
+
+#### Constructor
+
+```javascript
+new PatternedEventStore(eventQueue, model, options)
+```
+
+##### Parameters
+
+- `eventQueue` - An initialized event queue instance
+- `model` - A model instance
+- `options` - Configuration options
+  - `enforcePatterns` (boolean, default: true) - Enforce external/internal rules
+  - `validateRelationships` (boolean, default: true) - Validate parent events exist
+  - `autoCorrelation` (boolean, default: true) - Auto-generate correlation IDs
+
+#### Methods
+
+##### storeExternal
+
+Store an external event (no causationId allowed).
+
+```javascript
+async storeExternal(eventData, metadata = {}, callbacks = eventCallbacks.void)
+```
+
+###### Parameters
+
+- `eventData` - Event data object (without causationId)
+- `metadata` - Additional metadata to store
+- `callbacks` - Callback handlers
+
+###### Returns
+
+```javascript
+{
+  id: number,
+  correlationId: string,
+  event: EventRow
+}
+```
+
+##### storeInternal
+
+Store an internal event (causationId required).
+
+```javascript
+async storeInternal(eventData, parentEvent, metadata = {}, callbacks = eventCallbacks.void)
+```
+
+###### Parameters
+
+- `eventData` - Event data object
+- `parentEvent` - Parent event object or ID
+- `metadata` - Additional metadata
+- `callbacks` - Callback handlers
+
+##### storeInternalWithContexts
+
+Store an internal event with multiple correlation contexts.
+
+```javascript
+async storeInternalWithContexts(eventData, parentEvent, contexts = {}, callbacks = eventCallbacks.void)
+```
+
+###### Parameters
+
+- `eventData` - Event data object
+- `parentEvent` - Parent event object or ID
+- `contexts` - Object with primary and secondary correlation IDs
+  - `primary` - Main correlation ID
+  - Additional properties become secondary correlations
+
+##### batchInternal
+
+Process multiple internal events from one external trigger.
+
+```javascript
+async batchInternal(parentEvent, events, callbacks = eventCallbacks.void)
+```
+
+###### Returns
+
+```javascript
+{
+  batchId: string,
+  count: number,
+  events: Array<Event>
+}
+```
+
+##### createTransaction
+
+Create a transaction context for related events.
+
+```javascript
+createTransaction(name, metadata = {})
+```
+
+###### Returns
+
+```javascript
+{
+  correlationId: string,
+  metadata: object,
+  external: async (eventData, metadata) => Event,
+  internal: async (eventData, parentEvent, metadata) => Event
+}
+```
+
+### EventChainBuilder
+
+Build complex event chains with a fluent API.
+
+#### Constructor
+
+```javascript
+new EventChainBuilder(eventStore)
+```
+
+#### Methods
+
+##### startWith
+
+Begin chain with an external event.
+
+```javascript
+startWith(externalEvent, metadata = {})
+```
+
+##### then
+
+Add an internal event to the chain.
+
+```javascript
+then(internalEvent, metadata = {})
+```
+
+##### thenEach
+
+Add multiple internal events in parallel.
+
+```javascript
+thenEach(events, metadata = {})
+```
+
+##### execute
+
+Execute the entire chain.
+
+```javascript
+async execute(callbacks = eventCallbacks.void)
+```
+
+###### Returns
+
+```javascript
+{
+  count: number,
+  events: Array<Event>,
+  rootEvent: Event,
+  leafEvents: Array<Event>
+}
+```
+
+### EventPatternQueries
+
+Query helpers for finding events by pattern.
+
+#### Constructor
+
+```javascript
+new EventPatternQueries(eventQueue)
+```
+
+#### Methods
+
+##### findExternalEvents
+
+Find all external events (no causationId).
+
+```javascript
+findExternalEvents(options = {})
+```
+
+###### Options
+
+- `since` - Start datetime
+- `until` - End datetime
+- `cmd` - Command name filter
+
+##### findCausedBy
+
+Find all internal events caused by a specific external event.
+
+```javascript
+findCausedBy(externalEventId, options = {})
+```
+
+###### Options
+
+- `recursive` (boolean, default: true) - Include nested children
+- `maxDepth` (number, default: 10) - Maximum recursion depth
+
+##### buildEventTree
+
+Build a complete event tree from an external trigger.
+
+```javascript
+buildEventTree(externalEventId)
+```
+
+###### Returns
+
+```javascript
+{
+  event: EventRow,
+  eventType: 'external' | 'internal',
+  children: Array<EventNode>
+}
+```
+
+### EventPatternValidator
+
+Validate events follow naming and structural patterns.
+
+#### Constructor
+
+```javascript
+new EventPatternValidator(options = {})
+```
+
+##### Options
+
+- `strict` (boolean, default: true) - Enforce naming conventions
+
+#### Methods
+
+##### validate
+
+Validate an event follows patterns.
+
+```javascript
+validate(event)
+```
+
+###### Returns
+
+```javascript
+{
+  valid: boolean,
+  errors: Array<string>,
+  warnings: Array<string>
+}
+```
+
+### CorrelationContext
+
+Builder for managing primary and secondary correlation IDs.
+
+#### Constructor
+
+```javascript
+new CorrelationContext(primary)
+```
+
+#### Methods
+
+##### add
+
+Add a secondary correlation.
+
+```javascript
+add(name, correlationId)
+```
+
+##### addRule
+
+Add a rule correlation ID.
+
+```javascript
+addRule(ruleId)
+```
+
+##### addUser
+
+Add a user correlation ID.
+
+```javascript
+addUser(userId)
+```
+
+##### addBatch
+
+Add a batch correlation ID.
+
+```javascript
+addBatch(batchId)
+```
+
+##### build
+
+Build the correlation context object.
+
+```javascript
+build()
+```
+
+##### toMetadata
+
+Convert to metadata format.
+
+```javascript
+toMetadata()
+```
+
+### Factory Functions
+
+#### createPatternedEventStore
+
+```javascript
+createPatternedEventStore(eventQueue, model, options)
+```
+
+#### createEventChain
+
+```javascript
+createEventChain(eventStore)
+```
+
+#### createCorrelationContext
+
+```javascript
+createCorrelationContext(primary)
+```
+
+### Example Usage
+
+```javascript
+import {
+  createPatternedEventStore,
+  createEventChain,
+  createCorrelationContext
+} from 'eventlite-sourcing/lib/event-helpers.js';
+
+// Initialize patterned store
+const store = createPatternedEventStore(eventQueue, model);
+
+// Create a transaction
+const transaction = store.createTransaction('order-flow');
+
+// Store external event
+const external = await transaction.external({
+  user: 'user123',
+  cmd: 'orderSubmitted',
+  data: { orderId: 'ORD-123' }
+});
+
+// Build correlation context
+const context = createCorrelationContext(transaction.correlationId)
+  .addUser('USER-123')
+  .addRule('DISCOUNT-10')
+  .build();
+
+// Store internal with contexts
+await store.storeInternalWithContexts(
+  {
+    user: 'system',
+    cmd: 'applyDiscount',
+    data: { amount: 10 }
+  },
+  external,
+  context
+);
+
+// Build event chain
+const chain = createEventChain(store)
+  .startWith({
+    user: 'user456',
+    cmd: 'checkoutStarted',
+    data: { cartId: 'CART-789' }
+  })
+  .then({
+    user: 'system',
+    cmd: 'validateInventory',
+    data: { cartId: 'CART-789' }
+  })
+  .thenEach([
+    { user: 'system', cmd: 'reserveStock', data: { sku: 'A1' } },
+    { user: 'system', cmd: 'calculateTax', data: { total: 100 } }
+  ]);
+
+const results = await chain.execute();
+```
+
+### Handling Non-Deterministic Internal Events
+
+When internal events involve random generation or other non-deterministic operations, store the generated values in the event data:
+
+```javascript
+// Example: Password generation with stored result
+const passwordEvent = await store.storeInternal({
+  user: 'system',
+  ip: '127.0.0.1',
+  cmd: 'generatePassword',
+  data: {
+    userId: 'USER-123',
+    // Generate once and store in event
+    password: crypto.randomBytes(32).toString('hex'),
+    salt: crypto.randomBytes(16).toString('hex'),
+    algorithm: 'pbkdf2',
+    iterations: 100000
+  }
+}, parentEvent);
+
+// Example: Token generation with expiration
+const tokenEvent = await store.storeInternal({
+  user: 'system',
+  ip: '127.0.0.1',
+  cmd: 'generateApiToken',
+  data: {
+    userId: 'USER-123',
+    token: crypto.randomUUID(),
+    expiresAt: Date.now() + (30 * 24 * 60 * 60 * 1000), // 30 days
+    scope: ['read', 'write']
+  }
+}, parentEvent);
+
+// During replay, these events will use the stored values
+// rather than generating new random values
 ```

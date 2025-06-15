@@ -25,6 +25,9 @@ A lightweight event sourcing library for Node.js and Bun, built on SQLite. Event
 - [Quick Start](#quick-start)
 - [Core Concepts](#core-concepts)
 - [API Reference](#api-reference)
+- [Event Helpers](#event-helpers)
+- [External vs Internal Events](#external-vs-internal-events)
+- [Correlation ID Patterns](#correlation-id-patterns)
 - [Examples](#examples)
 - [Testing](#testing)
 - [Contributing](#contributing)
@@ -75,10 +78,17 @@ const model = modelSetup({
   }
 });
 
-// 3. Define callbacks for events
+// 3. Define callbacks for side effects (including triggering new events)
 const callbacks = {
   createUser(result, row) {
     console.log(`User created: ${result.name} at ${row.datetime}`);
+    
+    // Trigger new events in callbacks, NOT in model methods!
+    eventQueue.store({
+      cmd: 'sendWelcomeEmail',
+      data: { userId: result.userId, email: result.email },
+      causationId: row.id  // Link to parent event
+    }, model, callbacks);
   },
   _default(result, row) {
     console.log(`Event ${row.cmd} processed`);
@@ -94,9 +104,49 @@ await eventQueue.store(
   model,
   callbacks
 );
+```
 
-// 5. Replay events to rebuild state
-eventQueue.cycleThrough(model, () => console.log('Replay complete'), callbacks);
+## Important: State Changes vs Side Effects
+
+**Critical architectural principle**: Keep state changes separate from side effects!
+
+- **Model methods** - Pure state transformations only (database updates)
+- **Callbacks** - Side effects including triggering new events
+
+```javascript
+// ✅ CORRECT: Model method only updates state
+methods(queries) {
+  return {
+    createUser({ name, email }) {
+      const result = queries.createUser.run({ name, email });
+      return { userId: result.lastInsertRowid, name, email };
+      // Do NOT trigger events here!
+    }
+  };
+}
+
+// ✅ CORRECT: Callbacks handle side effects and new events
+const callbacks = {
+  createUser(result, row) {
+    // Send emails
+    sendWelcomeEmail(result.email);
+    
+    // Trigger follow-up events
+    eventQueue.store({
+      cmd: 'userWelcomeEmailSent',
+      data: { userId: result.userId },
+      causationId: row.id
+    }, model, callbacks);
+    
+    // Update external systems
+    updateAnalytics(result);
+  }
+};
+
+// This separation ensures:
+// 1. Model methods are replay-safe (no duplicate events during replay)
+// 2. Side effects can be controlled during replay with eventCallbacks.void
+// 3. Event causation chains are properly tracked
 ```
 
 ## Core Concepts
@@ -132,16 +182,93 @@ The model represents your current state and defines:
 
 - **Tables** - Database schema for your state
 - **Queries** - Prepared statements for database operations
-- **Methods** - Functions that process events and update state
+- **Methods** - Functions that process events and update state (pure transformations only!)
+
+**Key principle**: Model methods should NEVER trigger new events or cause side effects. They only transform state.
 
 ### Callbacks
 
 Callbacks handle side effects when events are processed:
 
+- **Trigger new events** - Chain events by storing new ones with causationId
 - Send notifications
 - Update caches
 - Trigger webhooks
 - Generate static files
+
+**Key principle**: All event triggering happens in callbacks, not in model methods. This ensures replay safety.
+
+## Event Chaining Patterns
+
+Understanding how to properly chain events is crucial for building maintainable event-sourced systems.
+
+### ❌ WRONG: Triggering Events in Model Methods
+
+```javascript
+// DON'T DO THIS - Creates duplicate events during replay!
+methods(queries) {
+  return {
+    createOrder({ userId, items }) {
+      const orderId = queries.createOrder.run({ userId, items }).lastInsertRowid;
+      
+      // WRONG: This creates new events during replay!
+      eventQueue.store({
+        cmd: 'calculateOrderTotals',
+        data: { orderId }
+      });
+      
+      return { orderId };
+    }
+  };
+}
+```
+
+### ✅ CORRECT: Triggering Events in Callbacks
+
+```javascript
+// Model method: Pure state transformation
+methods(queries) {
+  return {
+    createOrder({ userId, items }) {
+      const orderId = queries.createOrder.run({ userId, items }).lastInsertRowid;
+      return { orderId, items }; // Just return data, no side effects
+    }
+  };
+}
+
+// Callbacks: Handle event chaining
+const callbacks = {
+  createOrder(result, row) {
+    // Trigger follow-up events here
+    eventQueue.store({
+      cmd: 'calculateOrderTotals',
+      data: { orderId: result.orderId, items: result.items },
+      causationId: row.id  // Link to parent event
+    }, model, callbacks);
+    
+    // Can trigger multiple events
+    eventQueue.store({
+      cmd: 'checkInventory',
+      data: { orderId: result.orderId, items: result.items },
+      causationId: row.id
+    }, model, callbacks);
+  }
+};
+```
+
+### Why This Matters for Replay
+
+```javascript
+// During normal operation:
+await eventQueue.store(orderEvent, model, callbacks);
+// Result: 'createOrder' executes, callbacks fire, new events are created
+
+// During replay:
+eventQueue.cycleThrough(model, done, eventCallbacks.void);
+// Result: 'createOrder' executes, NO callbacks fire, NO duplicate events
+
+// If you had events in model methods, they would be created again during replay!
+```
 
 ## API Reference
 
@@ -299,6 +426,413 @@ Returns a `SnapshotManager` instance with methods:
 - `listSnapshots(modelName, limit, offset)` - List available snapshots
 - `deleteSnapshot(modelName, eventId)` - Delete a specific snapshot
 - `deleteOldSnapshots(modelName, eventId)` - Clean up old snapshots
+
+## Event Helpers
+
+The `event-helpers` module provides utilities for enforcing event patterns and managing complex correlations.
+
+### PatternedEventStore
+
+A wrapper around the event queue that enforces external/internal event patterns:
+
+```javascript
+import { createPatternedEventStore } from 'eventlite-sourcing/lib/event-helpers.js';
+
+const patternedStore = createPatternedEventStore(eventQueue, model, {
+  enforcePatterns: true,      // Enforce external/internal rules
+  validateRelationships: true, // Validate parent events exist
+  autoCorrelation: true       // Auto-generate correlation IDs
+});
+
+// Store external event (no causationId allowed)
+const external = await patternedStore.storeExternal({
+  user: 'user123',
+  ip: '127.0.0.1',
+  cmd: 'userClicked',
+  data: { button: 'submit' }
+});
+
+// Store internal event (must have parent)
+const internal = await patternedStore.storeInternal({
+  user: 'system',
+  ip: '127.0.0.1',
+  cmd: 'validateForm',
+  data: { formId: 'signup' }
+}, external);
+```
+
+### EventChainBuilder
+
+Build complex event chains with a fluent API:
+
+```javascript
+import { createEventChain } from 'eventlite-sourcing/lib/event-helpers.js';
+
+const chain = createEventChain(patternedStore)
+  .startWith({
+    user: 'user123',
+    ip: '127.0.0.1',
+    cmd: 'userSubmittedOrder',
+    data: { orderId: 'ORD-123' }
+  })
+  .then({
+    user: 'system',
+    ip: '127.0.0.1',
+    cmd: 'validateInventory',
+    data: { orderId: 'ORD-123' }
+  })
+  .thenEach([
+    { cmd: 'reserveStock', data: { sku: 'PROD-1', qty: 2 } },
+    { cmd: 'calculateShipping', data: { orderId: 'ORD-123' } },
+    { cmd: 'processPayment', data: { orderId: 'ORD-123' } }
+  ]);
+
+const results = await chain.execute();
+```
+
+### CorrelationContext
+
+Manage primary and secondary correlation IDs:
+
+```javascript
+import { createCorrelationContext } from 'eventlite-sourcing/lib/event-helpers.js';
+
+const context = createCorrelationContext('ORDER-123-process')
+  .addUser('USER-456')
+  .addRule('DISCOUNT-RULE-789')
+  .addBatch('BATCH-2024-01-15');
+
+// Use with PatternedEventStore
+await patternedStore.storeInternalWithContexts(
+  eventData,
+  parentEvent,
+  context.build()
+);
+```
+
+### EventPatternQueries
+
+Query events by their patterns:
+
+```javascript
+import { EventPatternQueries } from 'eventlite-sourcing/lib/event-helpers.js';
+
+const queries = new EventPatternQueries(eventQueue);
+
+// Find all external events
+const externalEvents = queries.findExternalEvents({
+  since: '2024-01-01',
+  cmd: 'userClicked'
+});
+
+// Build complete event tree
+const tree = queries.buildEventTree(externalEventId);
+```
+
+## External vs Internal Events
+
+EventLite enforces a clear distinction between external and internal events to maintain system integrity.
+
+### External Events
+
+External events are triggers from outside the system:
+
+- **No causationId** - They are root events that start chains
+- **User-initiated** - clicks, form submissions, API calls
+- **Time-based** - scheduled jobs, timeouts, expirations
+- **External systems** - webhooks, notifications, sensor data
+
+**Naming convention**: Subject-first, past tense
+- `userClicked`, `orderSubmitted`, `paymentReceived`
+- `timeExpired`, `scheduleReached`, `webhookOccurred`
+
+### Internal Events
+
+Internal events are system reactions:
+
+- **Must have causationId** - Always caused by another event
+- **System-generated** - validations, calculations, state changes, random generation
+- **Mostly deterministic** - Same input produces same output, except for:
+  - Random generation (passwords, tokens, UUIDs)
+  - Time-based values (timestamps, expiration dates)
+  - External API calls or dependencies
+
+**Naming convention**: Action-focused, descriptive
+- `validateOrder`, `calculateTax`, `updateInventory`
+- `generatePassword`, `createToken`, `assignRandomName`
+- `sendEmail`, `generateReport`, `archiveRecord`
+
+**Handling Non-Determinism**: When internal events involve randomness:
+```javascript
+// Store the generated value in the event data
+const password = await patternedStore.storeInternal({
+  user: 'system',
+  ip: '127.0.0.1',
+  cmd: 'generatePassword',
+  data: { 
+    userId: 'USER-123',
+    password: generateSecurePassword(), // Generated value stored in event
+    algorithm: 'bcrypt',
+    rounds: 10
+  }
+}, parentEvent);
+
+// During replay, the stored password is used instead of regenerating
+```
+
+### Example Flow
+
+```javascript
+// 1. External event starts the chain
+const userClick = await patternedStore.storeExternal({
+  user: 'user123',
+  ip: '192.168.1.1',
+  cmd: 'userClickedCheckout',
+  data: { cartId: 'CART-456' }
+});
+
+// 2. Internal events follow
+const validation = await patternedStore.storeInternal({
+  user: 'system',
+  ip: '127.0.0.1',
+  cmd: 'validateCart',
+  data: { cartId: 'CART-456' }
+}, userClick);
+
+// 3. More internal events can chain off each other
+const calculation = await patternedStore.storeInternal({
+  user: 'system',
+  ip: '127.0.0.1',
+  cmd: 'calculateTotals',
+  data: { cartId: 'CART-456' }
+}, validation);
+```
+
+## Correlation ID Patterns
+
+Correlation IDs track related events across complex workflows.
+
+### Primary Correlation ID
+
+The main correlation ID that groups all events in a business transaction:
+
+```javascript
+// All events in an order flow share the same correlation ID
+const correlationId = 'ORDER-789-20240115';
+
+await eventQueue.store({
+  correlationId,
+  user: 'user123',
+  cmd: 'orderPlaced',
+  data: { orderId: 'ORDER-789' }
+});
+```
+
+### Secondary Correlation IDs
+
+Track multiple contexts through metadata:
+
+```javascript
+await patternedStore.storeInternalWithContexts(
+  {
+    user: 'system',
+    cmd: 'applyDiscount',
+    data: { amount: 10 }
+  },
+  parentEvent,
+  {
+    primary: 'ORDER-789-20240115',          // Main business flow
+    userCorrelationId: 'USER-123-activity',  // Track user activity
+    ruleCorrelationId: 'RULE-DISCOUNT-50',   // Track rule applications
+    batchCorrelationId: 'BATCH-2024-01-15'   // Track batch processing
+  }
+);
+```
+
+### Transaction Contexts
+
+Group related operations:
+
+```javascript
+const transaction = patternedStore.createTransaction('checkout-flow', {
+  userId: 'USER-123',
+  sessionId: 'SESSION-456'
+});
+
+// All events share the transaction's correlation ID
+await transaction.external({
+  user: 'user123',
+  cmd: 'checkoutStarted',
+  data: { cartId: 'CART-789' }
+});
+
+await transaction.internal({
+  user: 'system',
+  cmd: 'validateShipping',
+  data: { cartId: 'CART-789' }
+}, parentEvent);
+```
+
+### Querying by Correlation
+
+```javascript
+// Get all events in a transaction
+const events = eventQueue.getTransaction(correlationId);
+
+// Find events by secondary correlation
+const userEvents = queries.findBySecondaryCorrelation(
+  'userCorrelationId',
+  'USER-123-activity'
+);
+
+// Get complete lineage
+const lineage = eventQueue.getEventLineage(eventId);
+```
+
+## Replay Mechanics
+
+### How Replays Work
+
+Event replay is the process of rebuilding state by re-executing events from the event log. The key aspects are:
+
+1. **Events are immutable** - Once stored, events never change
+2. **Data is preserved** - All event data (including random values) is stored and reused
+3. **Model methods receive stored data** - During replay, methods get the exact same data
+
+### Handling Non-Deterministic Operations
+
+**No code modification needed!** The pattern is to generate random values when creating the event, not in the model method:
+
+```javascript
+// ✅ CORRECT: Generate before storing the event
+const password = generateSecurePassword();
+await eventQueue.store({
+  user: 'system',
+  cmd: 'createUserPassword',
+  data: { 
+    userId: 'USER-123',
+    password: password,  // Random value stored in event
+    salt: generateSalt()
+  }
+}, model, callbacks);
+
+// Model method just uses what's in the event
+methods(queries) {
+  return {
+    createUserPassword({ userId, password, salt }) {
+      // During replay, password and salt come from stored event
+      const hash = hashPassword(password, salt);
+      queries.updatePassword.run({ userId, hash });
+      return { userId, passwordSet: true };
+    }
+  };
+}
+```
+
+```javascript
+// ❌ WRONG: Don't generate in the model method
+methods(queries) {
+  return {
+    createUserPassword({ userId }) {
+      // This would generate different values on replay!
+      const password = generateSecurePassword();
+      const salt = generateSalt();
+      // Don't do this!
+    }
+  };
+}
+```
+
+### Replays and Triggered Events
+
+During replay, callbacks are controlled to prevent duplicate side effects and events:
+
+```javascript
+// Normal operation - callbacks fire and can trigger new events
+await eventQueue.store(eventData, model, {
+  userCreated(result, row) {
+    // Side effects
+    sendWelcomeEmail(result.email);  
+    updateAnalytics(result.userId);   
+    
+    // Trigger follow-up events (these should ONLY be in callbacks!)
+    eventQueue.store({
+      cmd: 'sendWelcomeEmail',
+      data: { userId: result.userId, email: result.email },
+      causationId: row.id  // Links to parent event
+    }, model, callbacks);
+  }
+});
+
+// Replay operation - use void callbacks
+await eventQueue.cycleThrough(
+  model,
+  () => console.log('Replay complete'),
+  eventCallbacks.void  // No side effects or new events during replay
+);
+```
+
+**Key Point**: Events that are triggered by other events MUST be created in callbacks, not in model methods. This prevents duplicate events during replay.
+
+### Replay Strategies
+
+1. **Full Replay** - Rebuild everything from event 0
+```javascript
+// Reset model database
+model.reset();
+
+// Replay all events
+eventQueue.cycleThrough(model, () => {
+  console.log('Full replay complete');
+});
+```
+
+2. **Partial Replay** - Replay from a specific point
+```javascript
+// Replay events 1000-2000
+eventQueue.cycleThrough(model, () => {
+  console.log('Partial replay complete');
+}, eventCallbacks.void, { start: 1000, stop: 2000 });
+```
+
+3. **Selective Replay** - Custom processing during replay
+```javascript
+const replayCallbacks = {
+  _error(err) { console.error('Replay error:', err); },
+  _default() { /* silent for most events */ },
+  
+  // Only process specific events
+  orderCreated(result, row) {
+    console.log(`Replaying order ${result.orderId} from ${row.datetime}`);
+  }
+};
+
+eventQueue.cycleThrough(model, done, replayCallbacks);
+```
+
+### Preventing Duplicate Events During Replay
+
+Internal events triggered during replay are automatically prevented because:
+
+1. Events are append-only - replaying doesn't create new events
+2. The `cycleThrough` method only executes existing events
+3. Model methods should be pure data transformations
+
+```javascript
+// This is safe - during replay, the event already exists
+methods(queries) {
+  return {
+    orderPlaced({ orderId, items }, context) {
+      // Update model state
+      queries.createOrder.run({ orderId, items });
+      
+      // During normal operation, callbacks might trigger new events
+      // During replay, we use void callbacks so no new events are created
+      return { orderId, itemCount: items.length };
+    }
+  };
+}
+```
 
 ## Examples
 
