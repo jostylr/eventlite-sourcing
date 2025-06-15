@@ -1,10 +1,11 @@
 import { expect, test, describe, beforeEach, afterEach } from "bun:test";
 import {
   initQueue,
-  modelSetup,
   eventCallbacks,
+  modelSetup,
   initSnapshots,
 } from "../index.js";
+import { createTestModel } from "./helpers/test-model.js";
 import { unlinkSync } from "fs";
 
 describe("v0.2.0 Features Integration", () => {
@@ -390,37 +391,36 @@ describe("v0.2.0 Features Integration", () => {
     ]);
 
     // Test snapshot restoration
-    const freshModel = modelSetup({
+    // Create fresh model for restoration
+    const freshModel = createTestModel({
       dbName: ":memory:",
+      stub: false,
       tables(db) {
         db.query(
           `
           CREATE TABLE orders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            customer_id TEXT NOT NULL,
+            id TEXT PRIMARY KEY,
+            customer_id TEXT,
             status TEXT DEFAULT 'pending',
-            total REAL DEFAULT 0,
-            shipping_address TEXT,
             created_at INTEGER,
-            updated_at INTEGER
+            updated_at INTEGER,
+            total REAL DEFAULT 0,
+            shipping_address TEXT
           )
         `,
         ).run();
-
         db.query(
           `
           CREATE TABLE order_items (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            order_id INTEGER,
+            order_id TEXT,
             product_id TEXT,
             quantity INTEGER,
             price REAL,
-            discount REAL DEFAULT 0,
-            FOREIGN KEY (order_id) REFERENCES orders(id)
+            discount REAL DEFAULT 0
           )
         `,
         ).run();
-
         db.query(
           `
           CREATE TABLE audit_log (
@@ -532,7 +532,7 @@ describe("v0.2.0 Features Integration", () => {
   });
 
   test("should handle complex event trees with correlations", async () => {
-    const model = modelSetup({ dbName: ":memory:", stub: true });
+    const model = createTestModel({ dbName: ":memory:", stub: true });
 
     // Create a complex scenario: Order -> Payment -> (Email, Inventory) -> Shipping
     const orderEvent = await eventQueue.store(

@@ -39,8 +39,10 @@ describe("Index module exports", () => {
   });
 
   test("exported functions should be the same as direct imports", async () => {
-    const { initQueue: directInitQueue } = await import("../event-source.js");
-    const { modelSetup: directModelSetup } = await import("../model.js");
+    const { initQueue: directInitQueue } = await import(
+      "../lib/event-source.js"
+    );
+    const { modelSetup: directModelSetup } = await import("../lib/model.js");
 
     expect(initQueue).toBe(directInitQueue);
     expect(modelSetup).toBe(directModelSetup);

@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { modelSetup } from "../model.js";
+import { modelSetup } from "../lib/model.js";
 import { existsSync, rmSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 

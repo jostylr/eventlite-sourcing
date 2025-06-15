@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { initQueue, eventCallbacks } from "../event-source.js";
+import { initQueue, eventCallbacks } from "../lib/event-source.js";
 import { existsSync, rmSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 

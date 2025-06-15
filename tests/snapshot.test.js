@@ -1,10 +1,11 @@
 import { expect, test, describe, beforeEach, afterEach } from "bun:test";
 import {
   initQueue,
-  modelSetup,
   eventCallbacks,
+  modelSetup,
   initSnapshots,
 } from "../index.js";
+import { createTestModel } from "./helpers/test-model.js";
 import { unlinkSync } from "fs";
 
 describe("Snapshot Functionality", () => {
@@ -187,7 +188,7 @@ describe("Snapshot Functionality", () => {
   });
 
   test("should handle snapshot not found", async () => {
-    const model = modelSetup({ dbName: ":memory:", stub: true });
+    const model = createTestModel({ dbName: ":memory:", stub: true });
 
     const result = await snapshots.restoreSnapshot("non-existent", 100, model);
 

@@ -1,5 +1,6 @@
 import { expect, test, describe, beforeEach, afterEach } from "bun:test";
-import { initQueue, modelSetup, eventCallbacks } from "../index.js";
+import { initQueue, eventCallbacks, modelSetup } from "../index.js";
+import { createTestModel } from "./helpers/test-model.js";
 
 describe("Correlation and Causation IDs", () => {
   let eventQueue;
@@ -7,7 +8,7 @@ describe("Correlation and Causation IDs", () => {
 
   beforeEach(() => {
     eventQueue = initQueue({ dbName: ":memory:", risky: true });
-    model = modelSetup({ dbName: ":memory:", stub: true });
+    model = createTestModel({ dbName: ":memory:", stub: true });
   });
 
   afterEach(() => {
@@ -23,12 +24,14 @@ describe("Correlation and Causation IDs", () => {
         data: { value: 42 },
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     const event = eventQueue.retrieveByID(1);
     expect(event.correlation_id).toBeDefined();
-    expect(event.correlation_id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(event.correlation_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
     expect(event.causation_id).toBeNull();
   });
 
@@ -42,7 +45,7 @@ describe("Correlation and Causation IDs", () => {
         correlationId,
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     const event = eventQueue.retrieveByID(1);
@@ -57,7 +60,7 @@ describe("Correlation and Causation IDs", () => {
         data: { value: 1 },
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     const parentEvent = eventQueue.retrieveByID(1);
@@ -71,7 +74,7 @@ describe("Correlation and Causation IDs", () => {
         causationId: 1,
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     const childEvent = eventQueue.retrieveByID(2);
@@ -93,7 +96,7 @@ describe("Correlation and Causation IDs", () => {
         metadata,
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     const event = eventQueue.retrieveByID(1);
@@ -111,7 +114,7 @@ describe("Correlation and Causation IDs", () => {
         correlationId,
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     await eventQueue.store(
@@ -122,7 +125,7 @@ describe("Correlation and Causation IDs", () => {
         causationId: 1,
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     await eventQueue.store(
@@ -133,7 +136,7 @@ describe("Correlation and Causation IDs", () => {
         causationId: 2,
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     const transaction = eventQueue.getTransaction(correlationId);
@@ -142,7 +145,9 @@ describe("Correlation and Causation IDs", () => {
     expect(transaction[0].cmd).toBe("createOrder");
     expect(transaction[1].cmd).toBe("processPayment");
     expect(transaction[2].cmd).toBe("sendEmail");
-    expect(transaction.every(e => e.correlation_id === correlationId)).toBe(true);
+    expect(transaction.every((e) => e.correlation_id === correlationId)).toBe(
+      true,
+    );
   });
 
   test("should get child events", async () => {
@@ -153,7 +158,7 @@ describe("Correlation and Causation IDs", () => {
         data: { value: 1 },
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     // Multiple child events
@@ -164,7 +169,7 @@ describe("Correlation and Causation IDs", () => {
         causationId: 1,
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     await eventQueue.store(
@@ -174,7 +179,7 @@ describe("Correlation and Causation IDs", () => {
         causationId: 1,
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     // Grandchild event
@@ -185,7 +190,7 @@ describe("Correlation and Causation IDs", () => {
         causationId: 2,
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     const children = eventQueue.getChildEvents(1);
@@ -203,7 +208,7 @@ describe("Correlation and Causation IDs", () => {
         data: { level: 0 },
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     await eventQueue.store(
@@ -213,7 +218,7 @@ describe("Correlation and Causation IDs", () => {
         causationId: 1,
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     await eventQueue.store(
@@ -223,7 +228,7 @@ describe("Correlation and Causation IDs", () => {
         causationId: 2,
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     // Get lineage of middle event
@@ -257,7 +262,7 @@ describe("Correlation and Causation IDs", () => {
       },
       context,
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     const event = eventQueue.retrieveByID(1);
@@ -275,7 +280,7 @@ describe("Correlation and Causation IDs", () => {
         metadata: { original: true },
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     // Use context to create related event
@@ -292,12 +297,14 @@ describe("Correlation and Causation IDs", () => {
       },
       context,
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     const secondEvent = eventQueue.retrieveByID(2);
     expect(secondEvent.causation_id).toBe(1);
-    expect(secondEvent.correlation_id).toBe(eventQueue.retrieveByID(1).correlation_id);
+    expect(secondEvent.correlation_id).toBe(
+      eventQueue.retrieveByID(1).correlation_id,
+    );
     expect(secondEvent.metadata).toEqual({
       own: "data",
       additional: "info",
@@ -329,7 +336,7 @@ describe("Correlation and Causation IDs", () => {
         correlationId,
       },
       captureModel,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     await eventQueue.store(
@@ -340,17 +347,14 @@ describe("Correlation and Causation IDs", () => {
         causationId: 1,
       },
       captureModel,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     // Clear and replay
     events.length = 0;
-    eventQueue.cycleThrough(
-      captureModel,
-      () => {},
-      eventCallbacks.void,
-      { start: 0 }
-    );
+    eventQueue.cycleThrough(captureModel, () => {}, eventCallbacks.void, {
+      start: 0,
+    });
 
     expect(events).toHaveLength(2);
     expect(events[0].metadata.correlationId).toBe(correlationId);
@@ -370,7 +374,7 @@ describe("Correlation and Causation IDs", () => {
         correlationId,
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     // 2. Payment processing (caused by order)
@@ -381,7 +385,7 @@ describe("Correlation and Causation IDs", () => {
         causationId: 1,
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     // 3. Inventory check (caused by order)
@@ -392,7 +396,7 @@ describe("Correlation and Causation IDs", () => {
         causationId: 1,
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     // 4. Payment completed (caused by payment processing)
@@ -403,7 +407,7 @@ describe("Correlation and Causation IDs", () => {
         causationId: 2,
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     // 5. Send notification (caused by payment completion)
@@ -414,13 +418,16 @@ describe("Correlation and Causation IDs", () => {
         causationId: 4,
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     // Verify the tree structure
     const orderLineage = eventQueue.getEventLineage(1);
     expect(orderLineage.children).toHaveLength(2);
-    expect(orderLineage.children.map(c => c.cmd).sort()).toEqual(["checkInventory", "processPayment"]);
+    expect(orderLineage.children.map((c) => c.cmd).sort()).toEqual([
+      "checkInventory",
+      "processPayment",
+    ]);
 
     const paymentLineage = eventQueue.getEventLineage(2);
     expect(paymentLineage.parent.cmd).toBe("createOrder");
@@ -430,7 +437,9 @@ describe("Correlation and Causation IDs", () => {
     // All events should share the same correlation ID
     const allEvents = eventQueue.getTransaction(correlationId);
     expect(allEvents).toHaveLength(5);
-    expect(allEvents.every(e => e.correlation_id === correlationId)).toBe(true);
+    expect(allEvents.every((e) => e.correlation_id === correlationId)).toBe(
+      true,
+    );
   });
 
   test("should handle missing parent when inheriting correlation ID", async () => {
@@ -441,7 +450,7 @@ describe("Correlation and Causation IDs", () => {
         causationId: 999, // Non-existent parent
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     const event = eventQueue.retrieveByID(1);
@@ -462,7 +471,7 @@ describe("Correlation and Causation IDs", () => {
         metadata,
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     // Store child event
@@ -474,7 +483,7 @@ describe("Correlation and Causation IDs", () => {
         metadata: { ...metadata, child: true },
       },
       model,
-      eventCallbacks.void
+      eventCallbacks.void,
     );
 
     // Verify stored correctly

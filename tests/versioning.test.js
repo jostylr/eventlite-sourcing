@@ -1,5 +1,6 @@
 import { expect, test, describe, beforeEach, afterEach } from "bun:test";
 import { initQueue, modelSetup, eventCallbacks } from "../index.js";
+import { createTestModel } from "./helpers/test-model.js";
 import { Database } from "bun:sqlite";
 
 describe("Event Versioning and Migrations", () => {
@@ -17,7 +18,7 @@ describe("Event Versioning and Migrations", () => {
   });
 
   test("should store events with version numbers", async () => {
-    const testModel = modelSetup({ dbName: ":memory:", stub: true });
+    const testModel = createTestModel({ dbName: ":memory:", stub: true });
 
     const result = await eventQueue.store(
       {
@@ -35,7 +36,7 @@ describe("Event Versioning and Migrations", () => {
   });
 
   test("should default to version 1 if not specified", async () => {
-    const testModel = modelSetup({ dbName: ":memory:", stub: true });
+    const testModel = createTestModel({ dbName: ":memory:", stub: true });
 
     await eventQueue.store(
       {
