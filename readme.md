@@ -14,6 +14,10 @@ A lightweight event sourcing library for Node.js and Bun, built on SQLite. Event
 - 🧪 **Well Tested** - 97.83% code coverage
 - 🎯 **Simple API** - Easy to understand and use
 - 🔄 **Flexible Models** - Adapt to any data structure
+- 📌 **Event Versioning** - Built-in migrations for evolving event schemas
+- 💾 **Snapshot Support** - Efficient state restoration for large event stores
+- 🔗 **Correlation & Causation IDs** - Track relationships between events
+- 📘 **TypeScript Support** - Full type definitions included
 
 ## Table of Contents
 
@@ -156,9 +160,11 @@ Returns an object with:
 - `queries` - Direct access to database queries (internal use)
 - `methods` - Event queue methods (see below)
 
+**New in v0.2.0**: Events now include `version`, `correlation_id`, `causation_id`, and `metadata` fields.
+
 ### Event Queue Methods
 
-#### `async store({ user, ip, cmd, data }, model, callback)`
+#### `async store({ user, ip, cmd, data, version, correlationId, causationId, metadata }, model, callback)`
 
 Store and execute an event.
 
@@ -166,6 +172,10 @@ Store and execute an event.
 - `ip` (string) - IP address (optional)
 - `cmd` (string) - Command name (must match a model method)
 - `data` (object) - Data to pass to the command
+- `version` (number) - Event version for migration support (default: `1`)
+- `correlationId` (string) - Groups related events together (auto-generated if not provided)
+- `causationId` (number) - ID of the event that caused this one (optional)
+- `metadata` (object) - Additional event metadata (optional)
 - `model` (object) - The model to execute against
 - `callback` (object) - Callbacks for handling results
 
@@ -194,6 +204,39 @@ Replay events from the queue.
 - `whileCB` (object) - Callbacks for each event (optional)
 - `startId` (number) - Start replay from this event ID (optional)
 
+#### `getTransaction(correlationId)`
+
+Get all events with the same correlation ID.
+
+- `correlationId` (string) - The correlation ID to search for
+
+Returns an array of events in the transaction.
+
+#### `getChildEvents(eventId)`
+
+Get all events directly caused by a specific event.
+
+- `eventId` (number) - The parent event ID
+
+Returns an array of child events.
+
+#### `getEventLineage(eventId)`
+
+Get the complete lineage of an event (parent and children).
+
+- `eventId` (number) - The event ID to get lineage for
+
+Returns an object with `event`, `parent`, and `children` properties.
+
+#### `storeWithContext(eventData, context, model, callback)`
+
+Store an event with inherited context.
+
+- `eventData` (object) - The event data
+- `context` (object) - Context with `correlationId`, `causationId`/`parentEventId`, and `metadata`
+- `model` (object) - The model to execute against
+- `callback` (object) - Callbacks for handling results
+
 ### `modelSetup(options)`
 
 Create a model with the following options:
@@ -204,6 +247,7 @@ Create a model with the following options:
 - `tables` (function) - Function to create database tables
 - `queries` (function) - Function to create prepared queries
 - `methods` (function) - Function to create event handlers
+- `migrations` (function) - Function to define event migrations
 - `reset` (array) - Reset options: `['move']`, `['rename']`, or `['delete']`
 - `done` (function) - Success callback (optional)
 - `error` (function) - Error callback (optional)
@@ -240,7 +284,141 @@ EventLite provides some pre-built callback objects:
 - `eventCallbacks.error` - Only logs errors
 - `eventCallbacks.done` - Simple completion callback
 
+### `initSnapshots(options)`
+
+Initialize a snapshot manager for saving and restoring model state.
+
+- `dbName` (string) - Path to snapshot database (default: `'data/snapshots.sqlite'`)
+- `init` (object) - SQLite initialization options
+- `noWAL` (boolean) - Disable Write-Ahead Logging
+
+Returns a `SnapshotManager` instance with methods:
+
+- `createSnapshot(modelName, eventId, model, metadata)` - Save current model state
+- `restoreSnapshot(modelName, eventId, model)` - Restore model to a snapshot
+- `listSnapshots(modelName, limit, offset)` - List available snapshots
+- `deleteSnapshot(modelName, eventId)` - Delete a specific snapshot
+- `deleteOldSnapshots(modelName, eventId)` - Clean up old snapshots
+
 ## Examples
+
+### Event Versioning and Migrations
+
+```javascript
+import { initQueue, modelSetup } from 'eventlite-sourcing';
+
+const eventQueue = initQueue({ dbName: 'data/events.sqlite' });
+
+const model = modelSetup({
+  dbName: 'data/model.sqlite',
+  tables(db) {
+    db.query('CREATE TABLE users (id INTEGER PRIMARY KEY, status TEXT)').run();
+  },
+  methods(queries) {
+    return {
+      updateStatus({ userId, status }) {
+        queries.updateStatus.run({ id: userId, status });
+        return { userId, status };
+      }
+    };
+  },
+  migrations() {
+    return {
+      updateStatus: [
+        // Version 1 -> Version 2: Rename old status values
+        (data) => {
+          const statusMap = {
+            'inactive': 'disabled',
+            'active': 'enabled'
+          };
+          return {
+            ...data,
+            status: statusMap[data.status] || data.status
+          };
+        }
+      ]
+    };
+  }
+});
+
+// Old events with version 1 will be automatically migrated
+await eventQueue.store({
+  cmd: 'updateStatus',
+  data: { userId: 1, status: 'inactive' },
+  version: 1
+}, model, eventCallbacks.stub);
+```
+
+### Snapshots for Large Event Stores
+
+```javascript
+import { initQueue, modelSetup, initSnapshots } from 'eventlite-sourcing';
+
+const eventQueue = initQueue({ dbName: 'data/events.sqlite' });
+const snapshots = initSnapshots({ dbName: 'data/snapshots.sqlite' });
+
+// Create snapshot after processing many events
+const snapshotResult = await snapshots.createSnapshot(
+  'order-model',
+  1000, // After event 1000
+  orderModel,
+  { description: 'Daily snapshot' }
+);
+
+// Later, restore from snapshot instead of replaying all events
+const restoreResult = await snapshots.restoreSnapshot(
+  'order-model',
+  2000, // Find snapshot at or before event 2000
+  freshModel
+);
+
+// Only replay events after the snapshot
+eventQueue.cycleThrough(
+  freshModel,
+  () => console.log('State restored'),
+  eventCallbacks.void,
+  { start: restoreResult.replayFrom }
+);
+```
+
+### Correlation and Causation IDs
+
+```javascript
+// Track a complete business transaction
+const correlationId = crypto.randomUUID();
+
+// Initial event
+const orderResult = await eventQueue.store({
+  correlationId,
+  cmd: 'createOrder',
+  data: { customerId: 'CUST001', items: [...] }
+}, model, callbacks);
+
+// Related events inherit the correlation ID
+await eventQueue.storeWithContext(
+  {
+    cmd: 'processPayment',
+    data: { orderId: orderResult.orderId, amount: 99.99 }
+  },
+  {
+    correlationId,
+    parentEventId: 1, // This creates the causation link
+    metadata: { service: 'payment-service' }
+  },
+  model,
+  callbacks
+);
+
+// Query all events in the transaction
+const allEvents = eventQueue.methods.getTransaction(correlationId);
+
+// See what events were caused by the order creation
+const causedEvents = eventQueue.methods.getChildEvents(1);
+
+// Get complete lineage of an event
+const lineage = eventQueue.methods.getEventLineage(2);
+console.log(`Event ${lineage.event.cmd} was caused by ${lineage.parent.cmd}`);
+```
 
 ### User Management System
 
@@ -365,7 +543,7 @@ eventQueue.cycleThrough(
 
 ## Testing
 
-EventLite includes a comprehensive test suite with 97.83% code coverage.
+EventLite includes a comprehensive test suite with 97.83% code coverage, including tests for all new features (versioning, snapshots, correlation/causation IDs).
 
 ### Running Tests
 

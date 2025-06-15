@@ -18,6 +18,7 @@ const modelSetup = (options = {}) => {
       _default: defult,
       _done: () => {},
       _error: () => {},
+      _migrations: {},
     };
   }
 
@@ -28,6 +29,7 @@ const modelSetup = (options = {}) => {
     tables,
     queries,
     methods,
+    migrations,
     done = null,
     error = null,
   } = options;
@@ -83,6 +85,7 @@ const modelSetup = (options = {}) => {
 
   const qs = queries ? queries(db) : {};
   const ms = methods ? methods(qs, db) : {};
+  const migs = migrations ? migrations() : {};
 
   return {
     _db: db,
@@ -90,6 +93,7 @@ const modelSetup = (options = {}) => {
     _default: defult,
     _done: done ?? (() => {}), //row, res is arguments for recording that the event happened.
     _error: error ?? (() => {}), // receives an error object for storing
+    _migrations: migs,
     ...ms,
     get(cmd, data) {
       try {

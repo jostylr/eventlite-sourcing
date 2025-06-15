@@ -1,9 +1,10 @@
 {
   "name": "eventlite-sourcing",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A lightweight, fast event sourcing library built with Bun and SQLite for Node.js applications",
   "type": "module",
   "main": "index.js",
+  "types": "index.d.ts",
   "exports": {
     ".": "./index.js"
   },
@@ -43,8 +44,10 @@
   },
   "files": [
     "index.js",
+    "index.d.ts",
     "event-source.js",
     "model.js",
+    "lib/",
     "README.md",
     "LICENSE",
     "docs/"

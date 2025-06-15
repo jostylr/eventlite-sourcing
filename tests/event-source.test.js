@@ -346,7 +346,7 @@ describe("Event Source", () => {
       expect(retrieved).toBeDefined();
       expect(retrieved.id).toBe(lastRow.id);
       expect(retrieved.cmd).toBe("testCmd");
-      expect(JSON.parse(retrieved.data)).toEqual({ test: "data" });
+      expect(retrieved.data).toEqual({ test: "data" });
     });
 
     test("should return undefined for non-existent ID", () => {

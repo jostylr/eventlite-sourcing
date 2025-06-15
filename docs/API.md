@@ -50,6 +50,8 @@ initQueue(options?: QueueOptions): EventQueue
 | `hash` | `object` | `undefined` | Password hashing configuration using Bun.password |
 | `noWAL` | `boolean` | `false` | Disable Write-Ahead Logging mode |
 | `risky` | `boolean` | `false` | Enable test mode with reset() method (use only for testing) |
+| `reset` | `boolean` | `false` | Reset the event queue database (use only for testing) |
+| `datetime` | `function` | `() => Date.now()` | Function to generate timestamps |
 
 #### Returns
 
@@ -65,6 +67,10 @@ An `EventQueue` object containing:
     execute: Function,
     retrieveByID: Function,
     cycleThrough: Function,
+    getTransaction: Function,
+    getChildEvents: Function,
+    getEventLineage: Function,
+    storeWithContext: Function,
     reset?: Function  // Only if risky: true
   }
 }
@@ -104,11 +110,12 @@ modelSetup(options?: ModelOptions): Model
 | `tables` | `function` | `undefined` | Function to create database tables |
 | `queries` | `function` | `undefined` | Function to create prepared queries |
 | `methods` | `function/object` | `undefined` | Event handler methods |
+| `migrations` | `function` | `undefined` | Function to define event version migrations |
 | `reset` | `array` | `undefined` | Reset strategy: `['move']`, `['rename']`, or `['delete']` |
 | `done` | `function` | `undefined` | Called when model is successfully set up |
 | `error` | `function` | `undefined` | Called if setup fails |
 | `stub` | `boolean` | `false` | Create a stub model for testing |
-| `_default` | `function` | `undefined` | Default handler for unknown commands |
+| `default` | `function` | `undefined` | Default handler for unknown commands |
 
 #### Returns
 
@@ -120,7 +127,8 @@ A `Model` object containing:
   methods: object,     // Event handler methods
   _done?: function,    // Success callback
   _error?: function,   // Error callback
-  _default?: function  // Default command handler
+  _default?: function, // Default command handler
+  _migrations?: object // Event version migrations
 }
 ```
 
@@ -201,6 +209,10 @@ async store(
 | `ip` | `string` | `''` | IP address |
 | `cmd` | `string` | Required | Command name (must match a model method) |
 | `data` | `object` | `{}` | Data to pass to the command |
+| `version` | `number` | `1` | Event version for migration support |
+| `correlationId` | `string` | Auto-generated | Groups related events together |
+| `causationId` | `number` | `null` | ID of the event that caused this one |
+| `metadata` | `object` | `{}` | Additional event metadata |
 
 #### Special Fields
 
@@ -289,8 +301,189 @@ eventQueue.cycleThrough(model, () => {
 eventQueue.cycleThrough(model, 
   () => console.log('Partial replay complete'),
   eventCallbacks.void,
-  1000  // Start from event ID 1000
+  { start: 1000 }  // Start from event ID 1000
 );
+
+// Replay a specific range
+eventQueue.cycleThrough(model,
+  () => console.log('Range replay complete'),
+  eventCallbacks.void,
+  { start: 1000, stop: 2000 }  // Events 1000-1999
+);
+```
+
+### getTransaction
+
+Get all events with the same correlation ID.
+
+```javascript
+getTransaction(correlationId: string): EventRow[]
+```
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `correlationId` | `string` | Yes | The correlation ID to search for |
+
+#### Returns
+
+Array of event rows with parsed data and metadata.
+
+### getChildEvents
+
+Get all events directly caused by a specific event.
+
+```javascript
+getChildEvents(eventId: number): EventRow[]
+```
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `eventId` | `number` | Yes | The parent event ID |
+
+#### Returns
+
+Array of child event rows.
+
+### getEventLineage
+
+Get the complete lineage of an event (parent and children).
+
+```javascript
+getEventLineage(eventId: number): EventLineage | null
+```
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `eventId` | `number` | Yes | The event ID to get lineage for |
+
+#### Returns
+
+```typescript
+{
+  event: EventRow,      // The requested event
+  parent: EventRow | null,  // Parent event if any
+  children: EventRow[]  // Direct child events
+}
+```
+
+### storeWithContext
+
+Store an event with inherited context.
+
+```javascript
+storeWithContext(
+  eventData: EventData,
+  context: EventContext,
+  model: Model,
+  callback: CallbackObject
+): Promise<any>
+```
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `eventData` | `EventData` | Yes | The event data |
+| `context` | `EventContext` | Yes | Context to inherit |
+| `model` | `Model` | Yes | The model to execute against |
+| `callback` | `CallbackObject` | Yes | Callbacks for handling results |
+
+#### EventContext
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `correlationId` | `string` | Correlation ID to use |
+| `causationId` | `number` | Event ID that caused this |
+| `parentEventId` | `number` | Alternative to causationId |
+| `metadata` | `object` | Additional metadata to merge |
+
+## Snapshot API
+
+### initSnapshots
+
+Initialize a snapshot manager for saving and restoring model state.
+
+```javascript
+initSnapshots(options?: SnapshotOptions): SnapshotManager
+```
+
+#### SnapshotOptions
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `dbName` | `string` | `'data/snapshots.sqlite'` | Path to snapshot database |
+| `init` | `object` | `{ create: true, strict: true }` | SQLite initialization options |
+| `noWAL` | `boolean` | `false` | Disable Write-Ahead Logging |
+
+### SnapshotManager Methods
+
+#### createSnapshot
+
+Save current model state.
+
+```javascript
+async createSnapshot(
+  modelName: string,
+  eventId: number,
+  model: Model,
+  metadata?: object
+): Promise<CreateSnapshotResult>
+```
+
+#### restoreSnapshot
+
+Restore model state from a snapshot.
+
+```javascript
+async restoreSnapshot(
+  modelName: string,
+  eventId: number,
+  model: Model
+): Promise<RestoreSnapshotResult>
+```
+
+Returns:
+```typescript
+{
+  success: boolean,
+  eventId: number,      // Snapshot was taken at this event
+  replayFrom: number,   // Start replaying from this event ID
+  metadata?: object
+}
+```
+
+#### listSnapshots
+
+List available snapshots.
+
+```javascript
+listSnapshots(
+  modelName: string,
+  limit?: number,
+  offset?: number
+): SnapshotInfo[]
+```
+
+#### deleteSnapshot
+
+Delete a specific snapshot.
+
+```javascript
+deleteSnapshot(modelName: string, eventId: number): boolean
+```
+
+#### deleteOldSnapshots
+
+Clean up old snapshots.
+
+```javascript
+deleteOldSnapshots(modelName: string, keepAfterEventId: number): number
 ```
 
 ## Model Configuration
@@ -398,27 +591,26 @@ methods(queries: object): object
 Each method receives:
 
 ```javascript
-methodName(data: object, queries: object, metadata: object): any
+methodName(data: object, metadata: object): any
 ```
 
 | Parameter | Description |
 |-----------|-------------|
-| `data` | The data object from the event |
-| `queries` | The prepared database queries |
-| `metadata` | Event metadata: `{ datetime, user, ip, cmd, id }` |
+| `data` | The data object from the event (after migrations) |
+| `metadata` | Event metadata: `{ datetime, user, ip, cmd, id, version, correlationId, causationId, metadata }` |
 
 #### Example
 
 ```javascript
 methods(queries) {
   return {
-    createUser({ username, email }, queries, { datetime }) {
+    createUser({ username, email }, { datetime }) {
       const created_at = Date.parse(datetime);
       const result = queries.createUser.run({ username, email, created_at });
       return { userId: result.lastInsertRowid, username, email };
     },
     
-    createPost({ userId, title, content }, queries, { datetime, user }) {
+    createPost({ userId, title, content }, { datetime, user }) {
       // Verify user exists
       const author = queries.getUserById.get({ id: userId });
       if (!author) {
@@ -437,13 +629,64 @@ methods(queries) {
     },
     
     // Default handler for unknown commands
-    _default(data, queries, metadata) {
+    _default(data, metadata) {
       console.warn(`Unknown command: ${metadata.cmd}`);
       return { error: 'Unknown command' };
     }
   };
 }
 ```
+
+### Migrations Function
+
+Defines version migrations for evolving event schemas.
+
+```javascript
+migrations(): object
+```
+
+#### Returns
+
+An object mapping command names to arrays of migration functions.
+
+#### Migration Function Signature
+
+```javascript
+(data: object) => object
+```
+
+Each migration transforms data from one version to the next.
+
+#### Example
+
+```javascript
+migrations() {
+  return {
+    updateStatus: [
+      // Version 1 -> 2: Rename status values
+      (data) => {
+        const statusMap = {
+          'inactive': 'disabled',
+          'active': 'enabled'
+        };
+        return {
+          ...data,
+          status: statusMap[data.status] || data.status
+        };
+      },
+      // Version 2 -> 3: Add metadata
+      (data) => {
+        return {
+          ...data,
+          metadata: { migrated: true }
+        };
+      }
+    ]
+  };
+}
+```
+
+Migrations are applied sequentially based on the event's version number.
 
 ## Callback System
 
@@ -529,11 +772,15 @@ The structure of an event as stored in the database.
 ```typescript
 interface EventRow {
   id: number;          // Unique identifier (SQLite rowid)
+  version: number;     // Event version
   datetime: string;    // ISO 8601 timestamp
   user: string;        // User identifier
   ip: string;          // IP address
   cmd: string;         // Command name
   data: object;        // Command data (JSON)
+  correlation_id: string;   // Transaction/workflow identifier
+  causation_id: number | null;  // Parent event ID
+  metadata: object;    // Additional context (JSON)
 }
 ```
 
@@ -548,6 +795,7 @@ interface Model {
   _done?: Function;    // Success callback
   _error?: Function;   // Error callback
   _default?: Function; // Default command handler
+  _migrations?: object; // Version migration functions
 }
 ```
 
@@ -565,6 +813,10 @@ interface ErrorObject {
   ip: string;          // IP address
   datetime: string;    // When the event occurred
   id: number;          // Event ID
+  version: number;     // Event version
+  correlation_id: string;  // Transaction identifier
+  causation_id: number | null;  // Parent event ID
+  metadata: object;    // Event metadata
   res?: any;           // Partial result (if any)
 }
 ```
@@ -616,6 +868,93 @@ Write-Ahead Logging is enabled by default for better concurrency. Disable it if 
 ```javascript
 const eventQueue = initQueue({ noWAL: true });
 const model = modelSetup({ noWAL: true });
+```
+
+### Event Versioning Best Practices
+
+1. Always increment version when changing event structure
+2. Write migrations for backward compatibility
+3. Test migrations thoroughly with production data
+4. Keep migrations simple and idempotent
+
+```javascript
+// Good migration
+(data) => ({
+  ...data,
+  newField: data.oldField || 'default',
+  renamedField: data.oldFieldName
+});
+
+// Avoid complex logic in migrations
+```
+
+### Snapshot Strategy
+
+Choose snapshot frequency based on your needs:
+
+```javascript
+// Time-based snapshots
+setInterval(async () => {
+  const lastEvent = eventQueue.methods.getLastRow();
+  await snapshots.createSnapshot('model', lastEvent.id, model);
+}, 24 * 60 * 60 * 1000); // Daily
+
+// Event count-based snapshots
+if (eventId % 10000 === 0) {
+  await snapshots.createSnapshot('model', eventId, model);
+}
+
+// Business logic-based snapshots
+after('monthEnd', async () => {
+  await snapshots.createSnapshot('model', lastEventId, model, {
+    type: 'month-end',
+    month: currentMonth
+  });
+});
+```
+
+### Correlation ID Patterns
+
+Common patterns for using correlation IDs:
+
+```javascript
+// HTTP Request tracking
+app.use((req, res, next) => {
+  req.correlationId = req.headers['x-correlation-id'] || crypto.randomUUID();
+  next();
+});
+
+// Async job processing
+async function processJob(job) {
+  const correlationId = job.correlationId || crypto.randomUUID();
+  
+  await eventQueue.store({
+    correlationId,
+    cmd: 'jobStarted',
+    data: { jobId: job.id }
+  }, model, callbacks);
+  
+  // All related events use same correlation ID
+}
+
+// Saga pattern
+class OrderSaga {
+  constructor(correlationId) {
+    this.correlationId = correlationId;
+    this.events = [];
+  }
+  
+  async execute() {
+    try {
+      // Each step uses causation from previous
+      const order = await this.createOrder();
+      const payment = await this.processPayment(order.id);
+      const shipping = await this.arrangeShipping(order.id);
+    } catch (error) {
+      await this.compensate();
+    }
+  }
+}
 ```
 
 ### Error Handling Best Practices

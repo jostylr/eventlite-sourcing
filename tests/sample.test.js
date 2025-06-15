@@ -8,11 +8,9 @@ describe("Sample implementation", () => {
 
   beforeEach(() => {
     // Clean up any existing sample databases
-    if (existsSync(sampleDbPath)) {
-      rmSync(sampleDbPath);
-    }
-    if (existsSync(modelDbPath)) {
-      rmSync(modelDbPath);
+    const sampleDir = join("sample", "data");
+    if (existsSync(sampleDir)) {
+      rmSync(sampleDir, { recursive: true, force: true });
     }
   });
 
@@ -37,6 +35,10 @@ describe("Sample implementation", () => {
     console.error = (...args) => errors.push(args.join(" "));
 
     try {
+      // Clear module cache to ensure fresh import
+      const samplePath = new URL("../sample/sample.js", import.meta.url).href;
+      delete require.cache[samplePath];
+
       // Run the sample
       await import("../sample/sample.js");
 
