@@ -28,6 +28,7 @@ A lightweight event sourcing library for Node.js and Bun, built on SQLite. Event
 - [Event Helpers](#event-helpers)
 - [External vs Internal Events](#external-vs-internal-events)
 - [Correlation ID Patterns](#correlation-id-patterns)
+- [GDPR Compliance](#gdpr-compliance)
 - [Examples](#examples)
 - [Testing](#testing)
 - [Contributing](#contributing)
@@ -688,6 +689,62 @@ const userEvents = queries.findBySecondaryCorrelation(
 // Get complete lineage
 const lineage = eventQueue.getEventLineage(eventId);
 ```
+
+## GDPR Compliance
+
+Handling user data deletion requests in an immutable event log requires special strategies. EventLite Sourcing supports several approaches:
+
+### Crypto-Shredding (Recommended)
+
+Encrypt personal data with per-user keys. Delete the keys to make data unrecoverable:
+
+```javascript
+import { CryptoShredder } from './examples/gdpr-compliance.js';
+
+const cryptoShredder = new CryptoShredder();
+
+// Encrypt sensitive data
+const keyId = await cryptoShredder.generateUserKey(userId);
+const encrypted = cryptoShredder.encrypt({ ssn, creditCard }, keyId);
+
+// Store only encrypted reference in events
+await eventQueue.store({
+  cmd: 'userRegistered',
+  data: { userId, encryptedRef: encrypted.id }
+});
+
+// Delete upon request
+await cryptoShredder.deleteUserData(userId);
+```
+
+### Segregated Storage
+
+Keep personal data in a separate, mutable store:
+
+```javascript
+// Events contain only references
+await eventQueue.store({
+  cmd: 'userRegistered',
+  data: { userId, profileRef: 'profile-123' }
+});
+
+// Personal data in separate store
+personalStore.set('profile-123', { email, name, phone });
+
+// Delete from personal store only
+personalStore.delete('profile-123');
+```
+
+### Data Classification
+
+Classify data by sensitivity:
+
+- **Highly Sensitive**: SSN, credit cards → Crypto-shred
+- **Personal Data**: Email, name → Separate store
+- **Preferences**: Settings → Can remain in events
+- **Non-Personal**: User IDs, timestamps → Always in events
+
+See the [GDPR compliance guide](docs/gdpr-compliance.md) and [example implementation](examples/gdpr-compliance.js) for detailed patterns.
 
 ## Replay Mechanics
 
