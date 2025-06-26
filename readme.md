@@ -17,6 +17,7 @@ A lightweight event sourcing library for Node.js and Bun, built on SQLite. Event
 - 📌 **Event Versioning** - Built-in migrations for evolving event schemas
 - 💾 **Snapshot Support** - Efficient state restoration for large event stores
 - 🔗 **Correlation & Causation IDs** - Track relationships between events
+- 📁 **File Storage** - Comprehensive file management with permissions and retention
 - 📘 **TypeScript Support** - Full type definitions included
 
 ## Table of Contents
@@ -26,6 +27,7 @@ A lightweight event sourcing library for Node.js and Bun, built on SQLite. Event
 - [Core Concepts](#core-concepts)
 - [API Reference](#api-reference)
 - [Event Helpers](#event-helpers)
+- [File Storage](#file-storage)
 - [External vs Internal Events](#external-vs-internal-events)
 - [Correlation ID Patterns](#correlation-id-patterns)
 - [GDPR Compliance](#gdpr-compliance)
@@ -529,6 +531,58 @@ const externalEvents = queries.findExternalEvents({
 // Build complete event tree
 const tree = queries.buildEventTree(externalEventId);
 ```
+
+## File Storage
+
+EventLite includes comprehensive file storage capabilities with permissions, retention policies, and processing features:
+
+```javascript
+import { FileStorageManager } from 'eventlite-sourcing';
+
+// Initialize file storage
+const fileManager = new FileStorageManager({
+  baseDir: './data/files',
+  maxFileSize: 104857600,        // 100MB limit
+  allowedTypes: ['image/jpeg', 'image/png', 'application/pdf'],
+  enableDeepValidation: true     // Validate file types using magic bytes
+});
+
+// Store a file with metadata
+const fileRef = await fileManager.storeFile(buffer, {
+  originalName: 'document.pdf',
+  mimeType: 'application/pdf',
+  ownerId: 'user123',
+  retentionPolicy: '1year'
+});
+
+// Create event-compatible file reference for event storage
+const eventFileRef = fileManager.createEventFileReference(fileRef);
+
+await eventQueue.store({
+  cmd: 'documentUploaded',
+  data: {
+    title: 'Annual Report',
+    file: eventFileRef,            // File reference embedded in event
+    category: 'financial'
+  }
+}, model, callbacks);
+
+// Grant file permissions
+await fileManager.grantFilePermission(fileRef.id, 'user456', 'read', {
+  expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
+});
+
+// Process files
+const validation = await fileManager.validateFileContent(fileRef.id);
+const textContent = await fileManager.extractTextContent(fileRef.id);
+const thumbnail = await fileManager.generateThumbnail(fileRef.id);
+
+// Cleanup expired files
+const result = await fileManager.cleanupExpiredFiles();
+console.log(`Cleaned up ${result.deletedCount} expired files`);
+```
+
+For complete file storage documentation, see the [File Storage Guide](./docs/file-storage.md).
 
 ## External vs Internal Events
 

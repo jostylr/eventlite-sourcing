@@ -31,6 +31,12 @@ This document provides a comprehensive reference for all functions, methods, and
   - [EventPatternValidator](#eventpatternvalidator)
   - [CorrelationContext](#correlationcontext)
   - [Factory Functions](#factory-functions)
+- [File Storage API](#file-storage-api)
+  - [FileStorageManager](#filestoragemanager)
+  - [FileProcessor](#fileprocessor)
+- [Snapshot Management](#snapshot-management)
+  - [initSnapshots](#initsnapshots)
+  - [SnapshotManager](#snapshotmanager)
 
 ## Core Functions
 
@@ -1611,3 +1617,371 @@ const tokenEvent = await store.storeInternal({
 // During replay, these events will use the stored values
 // rather than generating new random values
 ```
+
+## File Storage API
+
+EventLite Sourcing provides comprehensive file storage capabilities through the FileStorageManager and FileProcessor classes.
+
+### FileStorageManager
+
+Main class for managing file storage, metadata, permissions, and retention policies.
+
+#### Constructor
+
+```javascript
+new FileStorageManager(options?: FileStorageOptions)
+```
+
+**Options:**
+- `baseDir?: string` - Base directory for file storage (default: './data/files')
+- `backend?: string` - Storage backend (default: 'local')
+- `maxFileSize?: number` - Maximum file size in bytes (default: 104857600)
+- `allowedTypes?: string[] | null` - Allowed MIME types (default: null = all)
+- `dbName?: string` - Database file path
+- `virusScanEnabled?: boolean` - Enable virus scanning (default: false)
+- `enableDeepValidation?: boolean` - Enable deep file validation (default: true)
+
+#### Core Methods
+
+##### storeFile(buffer, metadata)
+
+Store a file with metadata and return file reference.
+
+```javascript
+async storeFile(buffer: Buffer, metadata: FileMetadata): Promise<FileReference>
+```
+
+**Parameters:**
+- `buffer` - File content as Buffer
+- `metadata` - File metadata object
+
+**Metadata:**
+- `originalName: string` - Original filename
+- `mimeType: string` - MIME type
+- `ownerId?: string` - File owner ID
+- `expiresAt?: number` - Expiration timestamp
+- `retentionPolicy?: string` - Retention policy
+- `additionalMetadata?: object` - Custom metadata
+
+**Returns:** FileReference object with id, path, size, checksum, etc.
+
+##### getFile(fileId)
+
+Retrieve file content by ID.
+
+```javascript
+async getFile(fileId: string): Promise<Buffer>
+```
+
+##### getFileMetadata(fileId)
+
+Get file metadata by ID.
+
+```javascript
+async getFileMetadata(fileId: string): Promise<FileReference>
+```
+
+##### deleteFile(fileId)
+
+Delete a file by ID.
+
+```javascript
+async deleteFile(fileId: string): Promise<boolean>
+```
+
+#### Versioning Methods
+
+##### storeFileVersion(parentId, buffer, metadata)
+
+Create a new version of an existing file.
+
+```javascript
+async storeFileVersion(parentId: string, buffer: Buffer, metadata: FileMetadata): Promise<FileReference>
+```
+
+##### getFileVersions(fileId)
+
+Get all versions of a file.
+
+```javascript
+async getFileVersions(fileId: string): Promise<FileReference[]>
+```
+
+##### getFileHistory(fileId)
+
+Get complete version history.
+
+```javascript
+async getFileHistory(fileId: string): Promise<FileReference[]>
+```
+
+#### Permission Methods
+
+##### grantFilePermission(fileId, userId, permissionType, options)
+
+Grant permission to a user for a file.
+
+```javascript
+async grantFilePermission(
+  fileId: string, 
+  userId: string, 
+  permissionType: string, 
+  options?: PermissionOptions
+): Promise<boolean>
+```
+
+**Permission Types:** 'read', 'write', 'admin', or custom
+
+**Options:**
+- `groupId?: string` - Grant to group instead of user
+- `grantedBy?: string` - Who granted the permission
+- `expiresAt?: number` - Permission expiration
+
+##### checkFilePermission(fileId, userId, permissionType)
+
+Check if user has specific permission.
+
+```javascript
+async checkFilePermission(fileId: string, userId: string, permissionType: string): Promise<boolean>
+```
+
+##### canUserAccessFile(fileId, userId, action)
+
+Check if user can access file for specific action.
+
+```javascript
+async canUserAccessFile(fileId: string, userId: string, action?: string): Promise<boolean>
+```
+
+##### getAccessibleFiles(userId, permissionType)
+
+Get all files accessible to a user.
+
+```javascript
+async getAccessibleFiles(userId: string, permissionType?: string): Promise<FileReference[]>
+```
+
+#### Retention Methods
+
+##### applyRetentionPolicy(fileId, policy)
+
+Apply retention policy to a file.
+
+```javascript
+async applyRetentionPolicy(fileId: string, policy: string | number): Promise<number | null>
+```
+
+**Policies:** '1day', '7days', '30days', '1year', or custom milliseconds
+
+##### getExpiredFiles()
+
+Get all expired files.
+
+```javascript
+async getExpiredFiles(): Promise<FileReference[]>
+```
+
+##### cleanupExpiredFiles()
+
+Clean up all expired files.
+
+```javascript
+async cleanupExpiredFiles(): Promise<{deletedCount: number, totalExpired: number}>
+```
+
+#### Processing Methods
+
+##### validateFileContent(fileId)
+
+Validate file content and type.
+
+```javascript
+async validateFileContent(fileId: string): Promise<FileValidationResult>
+```
+
+##### extractTextContent(fileId)
+
+Extract text from documents.
+
+```javascript
+async extractTextContent(fileId: string): Promise<TextExtractionResult>
+```
+
+##### generateThumbnail(fileId, options)
+
+Generate thumbnail for images.
+
+```javascript
+async generateThumbnail(fileId: string, options?: object): Promise<ImageProcessingResult>
+```
+
+##### validateContentSecurity(fileId)
+
+Check file for security risks.
+
+```javascript
+async validateContentSecurity(fileId: string): Promise<SecurityValidationResult>
+```
+
+##### generateFileHashes(fileId)
+
+Generate multiple hashes for integrity verification.
+
+```javascript
+async generateFileHashes(fileId: string): Promise<FileHashes>
+```
+
+#### Event Integration Methods
+
+##### createEventFileReference(fileRef)
+
+Create event-compatible file reference.
+
+```javascript
+createEventFileReference(fileRef: FileReference): EventFileReference
+```
+
+##### resolveEventFileReference(eventRef)
+
+Resolve file content from event reference.
+
+```javascript
+async resolveEventFileReference(eventRef: EventFileReference): Promise<Buffer>
+```
+
+##### extractFileReferences(eventData)
+
+Extract file references from event data.
+
+```javascript
+extractFileReferences(eventData: any): EventFileReference[]
+```
+
+#### Utility Methods
+
+##### findOrphanedFiles(referencedFileIds)
+
+Find files not referenced in events.
+
+```javascript
+async findOrphanedFiles(referencedFileIds?: string[]): Promise<FileReference[]>
+```
+
+##### cleanupOrphanedFiles(referencedFileIds)
+
+Clean up unreferenced files.
+
+```javascript
+async cleanupOrphanedFiles(referencedFileIds?: string[]): Promise<number>
+```
+
+##### getStorageStats()
+
+Get storage statistics.
+
+```javascript
+async getStorageStats(): Promise<StorageStats>
+```
+
+### FileProcessor
+
+Standalone file processing and validation utilities.
+
+#### Constructor
+
+```javascript
+new FileProcessor(options?: FileProcessorOptions)
+```
+
+#### Methods
+
+##### validateFile(buffer, metadata)
+
+Comprehensive file validation.
+
+```javascript
+async validateFile(buffer: Buffer, metadata: FileMetadata): Promise<FileValidationResult>
+```
+
+##### detectFileType(buffer)
+
+Detect file type using magic bytes.
+
+```javascript
+detectFileType(buffer: Buffer): string | null
+```
+
+##### extractTextContent(buffer, mimeType)
+
+Extract text from file buffer.
+
+```javascript
+async extractTextContent(buffer: Buffer, mimeType: string): Promise<TextExtractionResult>
+```
+
+##### validateContentSecurity(buffer, metadata)
+
+Check for security risks in file content.
+
+```javascript
+async validateContentSecurity(buffer: Buffer, metadata: FileMetadata): Promise<SecurityValidationResult>
+```
+
+##### generateFileHashes(buffer)
+
+Generate multiple hashes for file.
+
+```javascript
+generateFileHashes(buffer: Buffer): FileHashes
+```
+
+## Snapshot Management
+
+### initSnapshots
+
+Initialize snapshot management system.
+
+```javascript
+initSnapshots(options?: SnapshotOptions): SnapshotManager
+```
+
+### SnapshotManager
+
+Class for managing model state snapshots.
+
+#### Methods
+
+##### createSnapshot(modelName, eventId, model, metadata)
+
+Create a snapshot of model state.
+
+```javascript
+async createSnapshot(
+  modelName: string, 
+  eventId: number, 
+  model: Model, 
+  metadata?: object
+): Promise<CreateSnapshotResult>
+```
+
+##### restoreSnapshot(modelName, eventId, model)
+
+Restore model state from snapshot.
+
+```javascript
+async restoreSnapshot(
+  modelName: string, 
+  eventId: number, 
+  model: Model
+): Promise<RestoreSnapshotResult>
+```
+
+##### listSnapshots(modelName, limit, offset)
+
+List available snapshots.
+
+```javascript
+listSnapshots(modelName: string, limit?: number, offset?: number): SnapshotInfo[]
+```
+
+For complete usage examples and detailed guides, see the [File Storage Guide](./file-storage.md).

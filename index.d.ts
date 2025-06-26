@@ -279,6 +279,9 @@ export interface FileMetadata {
   originalName: string;
   mimeType: string;
   additionalMetadata?: Record<string, any>;
+  ownerId?: string;
+  expiresAt?: number;
+  retentionPolicy?: string;
 }
 
 export interface FileReference {
@@ -292,6 +295,9 @@ export interface FileReference {
   version: number;
   parentId?: string;
   isDuplicate?: boolean;
+  ownerId?: string;
+  expiresAt?: number;
+  retentionPolicy?: string;
 }
 
 export interface EventFileReference {
@@ -311,6 +317,100 @@ export interface StorageStats {
   duplicateFiles: number;
   backend: string;
   baseDir: string;
+}
+
+export interface FilePermission {
+  id: number;
+  file_id: string;
+  user_id?: string;
+  group_id?: string;
+  permission_type: string;
+  granted_at: number;
+  granted_by?: string;
+  expires_at?: number;
+}
+
+export interface PermissionOptions {
+  groupId?: string;
+  grantedBy?: string;
+  expiresAt?: number;
+}
+
+export interface ExpirationResult {
+  deletedCount: number;
+  totalExpired: number;
+}
+
+// File Processing Types
+export interface FileValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+  detectedType: string | null;
+  actualSize: number;
+}
+
+export interface TextExtractionResult {
+  success: boolean;
+  text: string;
+  metadata: Record<string, any>;
+  error: string | null;
+}
+
+export interface ImageProcessingResult {
+  success: boolean;
+  originalSize: { width: number; height: number };
+  processedBuffer: Buffer | null;
+  metadata: Record<string, any>;
+  error: string | null;
+}
+
+export interface SecurityValidationResult {
+  safe: boolean;
+  risks: string[];
+  recommendations: string[];
+}
+
+export interface FileHashes {
+  md5: string;
+  sha1: string;
+  sha256: string;
+  sha512: string;
+}
+
+export interface VirusScanResult {
+  clean: boolean;
+  scanTime: number;
+  engine: string;
+  threats: string[];
+}
+
+export interface ProcessingResult {
+  fileId: string;
+  success: boolean;
+  result?: any;
+  error?: string;
+}
+
+export interface FileProcessorOptions {
+  maxFileSize?: number;
+  allowedTypes?: string[] | null;
+  virusScanEnabled?: boolean;
+  enableDeepValidation?: boolean;
+}
+
+export declare class FileProcessor {
+  constructor(options?: FileProcessorOptions);
+
+  validateFile(buffer: Buffer, metadata: FileMetadata): Promise<FileValidationResult>;
+  detectFileType(buffer: Buffer): string | null;
+  extractTextContent(buffer: Buffer, mimeType: string): Promise<TextExtractionResult>;
+  processImage(buffer: Buffer, options?: any): Promise<ImageProcessingResult>;
+  generateThumbnail(buffer: Buffer, mimeType: string, options?: any): Promise<ImageProcessingResult>;
+  validateContentSecurity(buffer: Buffer, metadata: FileMetadata): Promise<SecurityValidationResult>;
+  calculateFileHash(buffer: Buffer, algorithm?: string): string;
+  generateFileHashes(buffer: Buffer): FileHashes;
+  performVirusScan(buffer: Buffer): Promise<VirusScanResult>;
 }
 
 export declare class FileStorageManager {
@@ -337,6 +437,31 @@ export declare class FileStorageManager {
   findOrphanedFiles(referencedFileIds?: string[]): Promise<FileReference[]>;
   cleanupOrphanedFiles(referencedFileIds?: string[]): Promise<number>;
   getStorageStats(): Promise<StorageStats>;
+  
+  // Permission Management
+  grantFilePermission(fileId: string, userId: string, permissionType: string, options?: PermissionOptions): Promise<boolean>;
+  revokeFilePermission(permissionId: number): Promise<boolean>;
+  checkFilePermission(fileId: string, userId: string, permissionType: string): Promise<boolean>;
+  getUserFilePermissions(userId: string): Promise<FilePermission[]>;
+  getFilePermissions(fileId: string): Promise<FilePermission[]>;
+  canUserAccessFile(fileId: string, userId: string, action?: string): Promise<boolean>;
+  getAccessibleFiles(userId: string, permissionType?: string): Promise<FileReference[]>;
+  
+  // Retention and Expiration
+  getExpiredFiles(): Promise<FileReference[]>;
+  cleanupExpiredFiles(): Promise<ExpirationResult>;
+  applyRetentionPolicy(fileId: string, policy: string | number): Promise<number | null>;
+  getFilesByRetentionPolicy(policy: string): Promise<FileReference[]>;
+  
+  // File Processing
+  validateFileContent(fileId: string): Promise<FileValidationResult>;
+  extractTextContent(fileId: string): Promise<TextExtractionResult>;
+  generateThumbnail(fileId: string, options?: any): Promise<ImageProcessingResult & { thumbnailFileId?: string }>;
+  processImage(fileId: string, options?: any): Promise<ImageProcessingResult>;
+  validateContentSecurity(fileId: string): Promise<SecurityValidationResult>;
+  generateFileHashes(fileId: string): Promise<FileHashes>;
+  detectFileType(fileId: string): Promise<string | null>;
+  processMultipleFiles(fileIds: string[], operation: string, options?: any): Promise<ProcessingResult[]>;
   
   close(): void;
 }

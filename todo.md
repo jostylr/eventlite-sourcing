@@ -5,27 +5,27 @@ This document outlines planned enhancements and missing features for the EventLi
 ## File Handling & Storage Features
 
 ### 1. File Storage Helper Class
-- [ ] Create `FileStorageManager` utility class
-  - [ ] Support for multiple storage backends (local filesystem, cloud storage)
-  - [ ] File upload/download with progress tracking
-  - [ ] File metadata management (size, type, checksum)
-  - [ ] File reference generation for event storage
-  - [ ] File cleanup and garbage collection utilities
-  - [ ] Binary file handling (images, documents, archives)
+- [x] Create `FileStorageManager` utility class
+  - [x] Support for multiple storage backends (local filesystem, cloud storage)
+  - [x] File upload/download with progress tracking
+  - [x] File metadata management (size, type, checksum)
+  - [x] File reference generation for event storage
+  - [x] File cleanup and garbage collection utilities
+  - [x] Binary file handling (images, documents, archives)
 
 ### 2. File Reference Management
-- [ ] Standardized file reference format in events
-- [ ] File versioning and history tracking
-- [ ] File access permission integration
-- [ ] File expiration and retention policies
-- [ ] Orphaned file detection and cleanup
+- [x] Standardized file reference format in events
+- [x] File versioning and history tracking
+- [x] File access permission integration
+- [x] File expiration and retention policies
+- [x] Orphaned file detection and cleanup
 
 ### 3. File Processing Pipeline
-- [ ] Image processing (resize, compress, format conversion)
-- [ ] Document parsing and text extraction
-- [ ] Virus scanning integration hooks
-- [ ] File validation and type verification
-- [ ] Thumbnail generation for media files
+- [x] Image processing (resize, compress, format conversion)
+- [x] Document parsing and text extraction
+- [x] Virus scanning integration hooks
+- [x] File validation and type verification
+- [x] Thumbnail generation for media files
 
 ## Pre-Event Action Framework
 
