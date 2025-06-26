@@ -1,5 +1,10 @@
 # EventLite Sourcing - Codebase Analysis
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+Changes to the repository by claude should be recorded in a brief fashion in ai-changelog.md A major new change should be under its own heading. Each change should have the model and date/time, a single summary sentence, and then a small paragraph if more details are necessary. Tests should be done in a fashion for bun tests and stored in the tests folder. Examples have an examples folder and docs should contain the docs.
+
+
 ## Project Overview
 
 **EventLite Sourcing** is a lightweight, fast event sourcing library built specifically for Bun and SQLite, designed for Node.js applications. It provides a simple yet powerful implementation of the event sourcing pattern with minimal dependencies.
@@ -119,7 +124,7 @@ const callbacks = {
   createUser(result, row) {
     // Side effects: emails, notifications, etc.
     sendWelcomeEmail(result.email);
-    
+
     // Trigger follow-up events
     eventQueue.store({
       cmd: 'sendWelcomeEmail',
@@ -142,7 +147,7 @@ From `package.json`:
 {
   "scripts": {
     "test": "bun test",
-    "test:watch": "bun test --watch", 
+    "test:watch": "bun test --watch",
     "test:coverage": "bun test --coverage",
     "example:user": "bun run examples/user-management.js",
     "example:sample": "bun run sample/sample.js"
@@ -169,7 +174,7 @@ User Input/External Event
 Event Queue (store)
        ↓
 Model Method (pure state transformation)
-       ↓  
+       ↓
 Callback (side effects, trigger new events)
        ↓
 New Events → Event Queue (recursive)
@@ -216,7 +221,7 @@ Events store generated values (passwords, UUIDs, etc.) rather than generating th
 
 The project maintains 97.83% test coverage with comprehensive tests for:
 - Core event sourcing functionality
-- Event versioning and migrations  
+- Event versioning and migrations
 - Snapshot creation and restoration
 - Correlation and causation tracking
 - Event pattern validation

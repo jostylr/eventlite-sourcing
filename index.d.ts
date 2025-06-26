@@ -266,6 +266,81 @@ export declare class SnapshotManager {
   close(): void;
 }
 
+// File Storage Types
+export interface FileStorageOptions {
+  baseDir?: string;
+  backend?: "local";
+  maxFileSize?: number;
+  allowedTypes?: string[] | null;
+  dbName?: string;
+}
+
+export interface FileMetadata {
+  originalName: string;
+  mimeType: string;
+  additionalMetadata?: Record<string, any>;
+}
+
+export interface FileReference {
+  id: string;
+  path: string;
+  size: number;
+  mimeType: string;
+  checksum: string;
+  createdAt: number;
+  originalName: string;
+  version: number;
+  parentId?: string;
+  isDuplicate?: boolean;
+}
+
+export interface EventFileReference {
+  type: "file_reference";
+  fileId: string;
+  originalName: string;
+  size: number;
+  mimeType: string;
+  checksum: string;
+  version: number;
+}
+
+export interface StorageStats {
+  totalFiles: number;
+  totalSize: number;
+  uniqueFiles: number;
+  duplicateFiles: number;
+  backend: string;
+  baseDir: string;
+}
+
+export declare class FileStorageManager {
+  baseDir: string;
+  backend: string;
+  maxFileSize: number;
+  allowedTypes: string[] | null;
+
+  constructor(options?: FileStorageOptions);
+
+  storeFile(buffer: Buffer, metadata: FileMetadata): Promise<FileReference>;
+  getFile(fileId: string): Promise<Buffer>;
+  getFileMetadata(fileId: string): Promise<FileReference>;
+  deleteFile(fileId: string): Promise<boolean>;
+  
+  storeFileVersion(parentId: string, buffer: Buffer, metadata: FileMetadata): Promise<FileReference>;
+  getFileVersions(fileId: string): Promise<FileReference[]>;
+  getFileHistory(fileId: string): Promise<FileReference[]>;
+  
+  createEventFileReference(fileRef: FileReference): EventFileReference;
+  resolveEventFileReference(eventRef: EventFileReference): Promise<Buffer>;
+  extractFileReferences(eventData: any): EventFileReference[];
+  
+  findOrphanedFiles(referencedFileIds?: string[]): Promise<FileReference[]>;
+  cleanupOrphanedFiles(referencedFileIds?: string[]): Promise<number>;
+  getStorageStats(): Promise<StorageStats>;
+  
+  close(): void;
+}
+
 // Main exports
 export function initQueue(options?: QueueOptions): EventQueue;
 export function modelSetup(options?: ModelOptions): Model;
