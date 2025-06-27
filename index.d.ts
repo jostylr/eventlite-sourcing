@@ -466,6 +466,118 @@ export declare class FileStorageManager {
   close(): void;
 }
 
+// Event Querying Types
+export interface EventQueryOptions {
+  correlationId?: string;
+  eventId?: string;
+  includeMetrics?: boolean;
+  includeRelationships?: boolean;
+  format?: 'text' | 'json' | 'markdown';
+}
+
+export interface EventMetrics {
+  totalEvents: number;
+  rootEvents: number;
+  childEvents: number;
+  uniqueEventTypes: number;
+  eventTypeDistribution: Record<string, number>;
+  timeSpan: number;
+  averageDepth: string;
+}
+
+export interface EventRelationships {
+  chains: Array<{
+    startEvent: number;
+    length: number;
+    events: Array<{ id: number; cmd: string }>;
+  }>;
+  branchPoints: Array<{
+    eventId: number;
+    eventCmd: string;
+    childCount: number;
+    children: Array<{ id: number; cmd: string }>;
+  }>;
+  leafEvents: Array<{
+    eventId: number;
+    eventCmd: string;
+  }>;
+}
+
+export interface EventReportData {
+  title: string;
+  events: Array<{
+    id: number;
+    cmd: string;
+    causationId: number | null;
+    correlationId: string;
+    timestamp: string;
+    data: any;
+    isRoot: boolean;
+  }>;
+  metrics: EventMetrics;
+  relationships: EventRelationships;
+  generatedAt: string;
+  error?: string;
+}
+
+export interface EventBranch {
+  id: number;
+  cmd: string;
+  data: string;
+  correlation_id: string;
+  causation_id: number | null;
+  version: number;
+  timestamp: string;
+  root_id: number;
+  branch_path: string;
+  branch_depth: number;
+}
+
+export interface CriticalPath {
+  id: number;
+  cmd: string;
+  correlation_id: string;
+  causation_id: number | null;
+  path_length: number;
+  path: string;
+}
+
+export declare class EventQueryEngine {
+  constructor(dbPath: string);
+
+  // Root Event Detection (#10)
+  getRootEvents(): EventRow[];
+  getRootEventsInTimeRange(startId: number, endId: number): EventRow[];
+  getRootEventsByType(eventType: string): EventRow[];
+  getRootEventsByUser(userId: string): EventRow[];
+
+  // Enhanced Child Event Methods (#11)
+  getChildEvents(eventId: number): EventRow[];
+  getDescendantEvents(eventId: number): EventRow[];
+  getDirectChildren(eventId: number): EventRow[];
+  getChildrenByType(eventId: number, eventType: string): EventRow[];
+
+  // Cousin Event Detection (#12)
+  getCousinEvents(eventId: number): EventRow[];
+  getSiblingEvents(eventId: number): EventRow[];
+  getRelatedEvents(eventId: number): EventRow[];
+  getEventFamily(eventId: number): EventRow[];
+
+  // Advanced Event Relationship Queries (#13)
+  getEventDepth(eventId: number): number;
+  getEventBranches(correlationId: string): EventBranch[];
+  findOrphanedEvents(): EventRow[];
+  getEventInfluence(eventId: number): number;
+  getCriticalPath(correlationId: string): CriticalPath | null;
+
+  // Event Visualization and Reporting
+  generateEventReport(options?: EventQueryOptions): string;
+  generateVisualEventTree(correlationId: string): string;
+  getEventsByCorrelationId(correlationId: string): EventRow[];
+
+  close(): void;
+}
+
 // Main exports
 export function initQueue(options?: QueueOptions): EventQueue;
 export function modelSetup(options?: ModelOptions): Model;

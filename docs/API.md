@@ -1985,3 +1985,284 @@ listSnapshots(modelName: string, limit?: number, offset?: number): SnapshotInfo[
 ```
 
 For complete usage examples and detailed guides, see the [File Storage Guide](./file-storage.md).
+
+## Event Querying Engine
+
+The EventQueryEngine provides advanced event relationship analysis and visualization capabilities.
+
+### Import
+
+```javascript
+import { EventQueryEngine } from "eventlite-sourcing";
+```
+
+### Constructor
+
+```javascript
+const queryEngine = new EventQueryEngine(dbPath);
+```
+
+**Parameters:**
+- `dbPath: string` - Path to the SQLite database containing events
+
+### Root Event Detection
+
+#### getRootEvents()
+
+Get all events with no causation_id (external events).
+
+```javascript
+getRootEvents(): EventRow[]
+```
+
+#### getRootEventsInTimeRange(startId, endId)
+
+Get root events within a specific ID range.
+
+```javascript
+getRootEventsInTimeRange(startId: number, endId: number): EventRow[]
+```
+
+#### getRootEventsByType(eventType)
+
+Get root events of a specific command type.
+
+```javascript
+getRootEventsByType(eventType: string): EventRow[]
+```
+
+#### getRootEventsByUser(userId)
+
+Get root events initiated by a specific user.
+
+```javascript
+getRootEventsByUser(userId: string): EventRow[]
+```
+
+### Child Event Methods
+
+#### getDirectChildren(eventId)
+
+Get immediate child events (causation_id = eventId).
+
+```javascript
+getDirectChildren(eventId: number): EventRow[]
+```
+
+#### getDescendantEvents(eventId)
+
+Get all descendant events recursively.
+
+```javascript
+getDescendantEvents(eventId: number): EventRow[]
+```
+
+#### getChildrenByType(eventId, eventType)
+
+Get child events of a specific type.
+
+```javascript
+getChildrenByType(eventId: number, eventType: string): EventRow[]
+```
+
+### Cousin Event Detection
+
+#### getSiblingEvents(eventId)
+
+Get events with the same causation_id (same parent).
+
+```javascript
+getSiblingEvents(eventId: number): EventRow[]
+```
+
+#### getCousinEvents(eventId)
+
+Get events in same correlation but different causation branch.
+
+```javascript
+getCousinEvents(eventId: number): EventRow[]
+```
+
+#### getRelatedEvents(eventId)
+
+Get all events in the same correlation group.
+
+```javascript
+getRelatedEvents(eventId: number): EventRow[]
+```
+
+#### getEventFamily(eventId)
+
+Get complete event family (ancestors, descendants, cousins).
+
+```javascript
+getEventFamily(eventId: number): EventRow[]
+```
+
+### Advanced Relationship Queries
+
+#### getEventDepth(eventId)
+
+Get depth of event in causation chain (0 = root).
+
+```javascript
+getEventDepth(eventId: number): number
+```
+
+#### getEventInfluence(eventId)
+
+Get count of all descendant events.
+
+```javascript
+getEventInfluence(eventId: number): number
+```
+
+#### getEventBranches(correlationId)
+
+Get all causation branches with path information.
+
+```javascript
+getEventBranches(correlationId: string): EventBranch[]
+```
+
+#### getCriticalPath(correlationId)
+
+Get the longest causation chain in correlation.
+
+```javascript
+getCriticalPath(correlationId: string): CriticalPath | null
+```
+
+#### findOrphanedEvents()
+
+Find events with invalid causation_ids.
+
+```javascript
+findOrphanedEvents(): EventRow[]
+```
+
+### Event Visualization
+
+#### generateEventReport(options)
+
+Generate comprehensive event analysis report.
+
+```javascript
+generateEventReport(options?: EventQueryOptions): string
+```
+
+**Options:**
+- `correlationId?: string` - Analyze specific correlation
+- `eventId?: string` - Analyze correlation containing this event
+- `includeMetrics?: boolean` - Include statistical analysis (default: true)
+- `includeRelationships?: boolean` - Include relationship analysis (default: true)
+- `format?: 'text' | 'json' | 'markdown'` - Output format (default: 'text')
+
+#### generateVisualEventTree(correlationId)
+
+Create ASCII visual representation of event tree.
+
+```javascript
+generateVisualEventTree(correlationId: string): string
+```
+
+#### getEventsByCorrelationId(correlationId)
+
+Get all events in a correlation group.
+
+```javascript
+getEventsByCorrelationId(correlationId: string): EventRow[]
+```
+
+### Cleanup
+
+#### close()
+
+Close database connection.
+
+```javascript
+close(): void
+```
+
+### Type Definitions
+
+```typescript
+interface EventQueryOptions {
+  correlationId?: string;
+  eventId?: string;
+  includeMetrics?: boolean;
+  includeRelationships?: boolean;
+  format?: 'text' | 'json' | 'markdown';
+}
+
+interface EventBranch {
+  id: number;
+  cmd: string;
+  correlation_id: string;
+  causation_id: number | null;
+  root_id: number;
+  branch_path: string;
+  branch_depth: number;
+}
+
+interface CriticalPath {
+  id: number;
+  cmd: string;
+  correlation_id: string;
+  causation_id: number | null;
+  path_length: number;
+  path: string;
+}
+
+interface EventMetrics {
+  totalEvents: number;
+  rootEvents: number;
+  childEvents: number;
+  uniqueEventTypes: number;
+  eventTypeDistribution: Record<string, number>;
+  timeSpan: number;
+  averageDepth: string;
+}
+```
+
+### Usage Examples
+
+```javascript
+// Basic relationship analysis
+const queryEngine = new EventQueryEngine("events.sqlite");
+
+// Find all root events
+const roots = queryEngine.getRootEvents();
+
+// Analyze specific event's children
+const children = queryEngine.getDirectChildren(123);
+const allDescendants = queryEngine.getDescendantEvents(123);
+
+// Find related events
+const siblings = queryEngine.getSiblingEvents(123);
+const cousins = queryEngine.getCousinEvents(123);
+
+// Advanced analysis
+const depth = queryEngine.getEventDepth(123);
+const influence = queryEngine.getEventInfluence(123);
+
+// Generate reports
+const textReport = queryEngine.generateEventReport({
+  correlationId: "order-001",
+  format: "text"
+});
+
+const jsonReport = queryEngine.generateEventReport({
+  correlationId: "order-001", 
+  format: "json"
+});
+
+// Visual tree
+const tree = queryEngine.generateVisualEventTree("order-001");
+console.log(tree);
+
+// Cleanup
+queryEngine.close();
+```
+
+For complete usage examples and detailed guides, see the [Event Querying Guide](./event-querying.md).

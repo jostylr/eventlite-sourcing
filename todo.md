@@ -79,29 +79,37 @@ This document outlines planned enhancements and missing features for the EventLi
 ## Event Relationship & Querying Features
 
 ### 10. Root Event Detection
-- [ ] `getRootEvents()` - Get all events with no causation_id (external events)
-- [ ] `getRootEventsInTimeRange(start, end)` - Time-bounded root events
-- [ ] `getRootEventsByType(eventType)` - Filter root events by type
-- [ ] `getRootEventsByUser(userId)` - User-initiated root events
+- [x] `getRootEvents()` - Get all events with no causation_id (external events)
+- [x] `getRootEventsInTimeRange(start, end)` - Time-bounded root events
+- [x] `getRootEventsByType(eventType)` - Filter root events by type
+- [x] `getRootEventsByUser(userId)` - User-initiated root events
 
 ### 11. Enhanced Child Event Methods
-- [ ] Verify existing `getChildEvents(eventId)` method
-- [ ] `getDescendantEvents(eventId)` - All descendants (recursive)
-- [ ] `getDirectChildren(eventId)` - Only immediate children
-- [ ] `getChildrenByType(eventId, eventType)` - Filtered children
+- [x] Verify existing `getChildEvents(eventId)` method
+- [x] `getDescendantEvents(eventId)` - All descendants (recursive)
+- [x] `getDirectChildren(eventId)` - Only immediate children
+- [x] `getChildrenByType(eventId, eventType)` - Filtered children
 
 ### 12. Cousin Event Detection
-- [ ] `getCousinEvents(eventId)` - Events sharing same correlation_id but different causation chain
-- [ ] `getSiblingEvents(eventId)` - Events with same causation_id
-- [ ] `getRelatedEvents(eventId)` - All events in same correlation group
-- [ ] `getEventFamily(eventId)` - Complete family tree (ancestors, descendants, cousins)
+- [x] `getCousinEvents(eventId)` - Events sharing same correlation_id but different causation chain
+- [x] `getSiblingEvents(eventId)` - Events with same causation_id
+- [x] `getRelatedEvents(eventId)` - All events in same correlation group
+- [x] `getEventFamily(eventId)` - Complete family tree (ancestors, descendants, cousins)
 
 ### 13. Advanced Event Relationship Queries
-- [ ] `getEventDepth(eventId)` - How deep in causation chain
-- [ ] `getEventBranches(correlationId)` - All causation branches in transaction
-- [ ] `findOrphanedEvents()` - Events with invalid causation_ids
-- [ ] `getEventInfluence(eventId)` - Count of all descendants
-- [ ] `getCriticalPath(correlationId)` - Longest causation chain in transaction
+- [x] `getEventDepth(eventId)` - How deep in causation chain
+- [x] `getEventBranches(correlationId)` - All causation branches in transaction
+- [x] `findOrphanedEvents()` - Events with invalid causation_ids
+- [x] `getEventInfluence(eventId)` - Count of all descendants
+- [x] `getCriticalPath(correlationId)` - Longest causation chain in transaction
+
+### Event Visualization & Reporting (Bonus Feature)
+- [x] `generateEventReport(options)` - Generate comprehensive event reports in text, JSON, or markdown format
+- [x] `generateVisualEventTree(correlationId)` - Create ASCII visual representation of event trees
+- [x] `getEventsByCorrelationId(correlationId)` - Get all events in a correlation group
+- [x] Event metrics calculation (total events, types, depth analysis, etc.)
+- [x] Event relationship analysis (chains, branch points, leaf events)
+- [x] Real-world use case examples for debugging and performance analysis
 
 ## Performance & Scalability
 

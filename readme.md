@@ -17,6 +17,7 @@ A lightweight event sourcing library for Node.js and Bun, built on SQLite. Event
 - 📌 **Event Versioning** - Built-in migrations for evolving event schemas
 - 💾 **Snapshot Support** - Efficient state restoration for large event stores
 - 🔗 **Correlation & Causation IDs** - Track relationships between events
+- 🔍 **Event Querying** - Advanced relationship analysis and visualization
 - 📁 **File Storage** - Comprehensive file management with permissions and retention
 - 📘 **TypeScript Support** - Full type definitions included
 
@@ -27,6 +28,7 @@ A lightweight event sourcing library for Node.js and Bun, built on SQLite. Event
 - [Core Concepts](#core-concepts)
 - [API Reference](#api-reference)
 - [Event Helpers](#event-helpers)
+- [Event Querying](#event-querying)
 - [File Storage](#file-storage)
 - [External vs Internal Events](#external-vs-internal-events)
 - [Correlation ID Patterns](#correlation-id-patterns)
@@ -531,6 +533,66 @@ const externalEvents = queries.findExternalEvents({
 // Build complete event tree
 const tree = queries.buildEventTree(externalEventId);
 ```
+
+## Event Querying
+
+EventLite provides powerful event relationship analysis and visualization capabilities through the EventQueryEngine:
+
+```javascript
+import { EventQueryEngine } from 'eventlite-sourcing';
+
+// Initialize query engine
+const queryEngine = new EventQueryEngine('path/to/events.sqlite');
+
+// Root event detection
+const rootEvents = queryEngine.getRootEvents();
+const userRegistrations = queryEngine.getRootEventsByType('userRegistered');
+
+// Child event analysis
+const children = queryEngine.getDirectChildren(eventId);
+const allDescendants = queryEngine.getDescendantEvents(eventId);
+
+// Cousin event detection
+const siblings = queryEngine.getSiblingEvents(eventId);
+const cousins = queryEngine.getCousinEvents(eventId);
+const family = queryEngine.getEventFamily(eventId);
+
+// Advanced relationship queries
+const depth = queryEngine.getEventDepth(eventId);
+const influence = queryEngine.getEventInfluence(eventId);
+const criticalPath = queryEngine.getCriticalPath('correlation-id');
+
+// Event visualization and reporting
+const report = queryEngine.generateEventReport({
+  correlationId: 'order-001',
+  format: 'text'
+});
+
+const tree = queryEngine.generateVisualEventTree('order-001');
+console.log(tree);
+// Output:
+// Event Tree for Correlation ID: order-001
+// ══════════════════════════════════════════════════
+// └── [1] orderPlaced
+//     ├── [2] validateOrder
+//     ├── [3] processPayment
+//     │   └── [5] paymentApproved
+//     └── [4] reserveInventory
+
+// Cleanup
+queryEngine.close();
+```
+
+**Key Features:**
+- **Root Event Detection**: Find all external triggers and entry points
+- **Relationship Analysis**: Understand parent-child, sibling, and cousin relationships
+- **Depth & Influence Metrics**: Measure event impact and causation chains
+- **Visual Tree Generation**: ASCII art representation of event structures
+- **Multi-format Reporting**: Text, JSON, and Markdown output formats
+- **Performance Analysis**: Identify bottlenecks and branching points
+- **Data Lifecycle Management**: Find orphaned events and complete families
+
+See the [Event Querying Guide](docs/event-querying.md) for complete documentation.
 
 ## File Storage
 

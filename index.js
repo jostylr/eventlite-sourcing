@@ -3,6 +3,7 @@ import { modelSetup } from "./lib/model.js";
 import { initSnapshots, SnapshotManager } from "./lib/snapshot.js";
 import { FileStorageManager } from "./lib/file-storage.js";
 import { FileProcessor } from "./lib/file-processor.js";
+import { EventQueryEngine } from "./lib/event-querying.js";
 
 export {
   initQueue,
@@ -12,4 +13,5 @@ export {
   SnapshotManager,
   FileStorageManager,
   FileProcessor,
+  EventQueryEngine,
 };

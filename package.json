@@ -13,7 +13,8 @@
     "test:watch": "bun test --watch",
     "test:coverage": "bun test --coverage",
     "example:user": "bun run examples/user-management.js",
-    "example:sample": "bun run sample/sample.js"
+    "example:sample": "bun run sample/sample.js",
+    "example:querying": "bun run examples/event-relationships-demo.js"
   },
   "keywords": [
     "event-sourcing",
