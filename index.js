@@ -10,6 +10,8 @@ import { DataGenerator, dataGenerators, defaultDataGenerator } from "./lib/data-
 import { PrivacyManager, CryptoShredder, PersonalDataStore, ConsentManager, DataClassifier } from "./lib/privacy-manager.js";
 import { AutoDataClassifier, ConsentManagementSystem, DataRetentionPolicyManager, PrivacyImpactAssessment, DataBreachNotificationManager } from "./lib/privacy-controls.js";
 import ComplianceReportingManager, { ComplianceDashboard, DataProcessingActivityLogger, ConsentTrackingReporter, DataSubjectRequestTracker, RegulatoryAuditTrail } from "./lib/compliance-reporting.js";
+import { BulkOperations } from "./lib/bulk-operations.js";
+import { BackgroundJobQueue, EventJobProcessor } from "./lib/background-jobs.js";
 
 export {
   initQueue,
@@ -48,4 +50,8 @@ export {
   ConsentTrackingReporter,
   DataSubjectRequestTracker,
   RegulatoryAuditTrail,
+  // Performance & Bulk Operations
+  BulkOperations,
+  BackgroundJobQueue,
+  EventJobProcessor,
 };

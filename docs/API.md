@@ -13,6 +13,13 @@ This document provides a comprehensive reference for all functions, methods, and
   - [execute](#execute)
   - [retrieveByID](#retrievebyid)
   - [cycleThrough](#cyclethrough)
+- [Performance & Scalability](#performance--scalability)
+  - [Index Configuration](#index-configuration)
+  - [Query Caching](#query-caching)
+  - [Pagination](#pagination)
+  - [Streaming](#streaming)
+  - [Bulk Operations](#bulk-operations)
+  - [Background Jobs](#background-jobs)
 - [Model Configuration](#model-configuration)
   - [Tables Function](#tables-function)
   - [Queries Function](#queries-function)
@@ -497,6 +504,264 @@ Clean up old snapshots.
 
 ```javascript
 deleteOldSnapshots(modelName: string, keepAfterEventId: number): number
+```
+
+## Performance & Scalability
+
+EventLite Sourcing includes comprehensive performance optimization features. For detailed guidance, see the [Performance Guide](./Performance-Guide.md).
+
+### Index Configuration
+
+Configure database indexes to balance write performance vs query speed:
+
+```javascript
+const eventQueue = initQueue({
+  indexes: {
+    // Core indexes (recommended to keep)
+    correlation_id: true,     // Event transaction grouping
+    causation_id: true,       // Event relationship tracking
+    
+    // Performance indexes (enable based on usage)
+    cmd: false,               // Command-based filtering
+    user: false,              // User-based queries
+    datetime: false,          // Time-range queries
+    version: false,           // Version-based filtering
+    
+    // Composite indexes (highest overhead)
+    correlation_cmd: false,   // Correlation + command queries
+    user_datetime: false,     // User + time range queries
+  }
+});
+```
+
+**Performance Impact:**
+- Minimal indexes (2): ~900 events/sec with WAL
+- Balanced indexes (4-5): ~400 events/sec  
+- All indexes (8): ~220 events/sec
+
+### Query Caching
+
+Enable caching for frequently accessed data:
+
+```javascript
+const eventQueue = initQueue({
+  cache: {
+    enabled: true,
+    maxSize: 1000,        // Number of cached items
+    ttl: 300000,          // 5 minutes in milliseconds
+  }
+});
+
+// Use cached methods
+const event = eventQueue.retrieveByIDCached(id);
+const transaction = eventQueue.getTransactionCached(correlationId);
+
+// Cache management
+const stats = eventQueue.getCacheStats();
+eventQueue.clearCache();
+```
+
+### Pagination
+
+Handle large result sets efficiently:
+
+```javascript
+// Paginated correlation query
+const page = eventQueue.getByCorrelationIdPaginated(correlationId, {
+  limit: 100,
+  offset: 0
+});
+
+console.log({
+  events: page.events,        // Array of events
+  totalCount: page.totalCount, // Total matching events
+  hasMore: page.hasMore,      // Boolean: more pages available
+  nextOffset: page.nextOffset // Next offset or null
+});
+
+// Other paginated methods
+eventQueue.getChildEventsPaginated(eventId, { limit: 50 });
+eventQueue.getEventsByUserPaginated(user, { limit: 100 });
+eventQueue.getEventsByCmdPaginated(cmd, { limit: 200 });
+eventQueue.getEventsInTimeRangePaginated(start, end, { limit: 100 });
+```
+
+### Streaming
+
+Process large datasets with memory efficiency:
+
+```javascript
+// Stream all events in batches
+for await (const batch of eventQueue.streamEvents({ batchSize: 1000 })) {
+  console.log(`Processing batch of ${batch.length} events`);
+  await processBatch(batch);
+}
+
+// Stream with filtering
+for await (const batch of eventQueue.streamEvents({
+  batchSize: 500,
+  correlationId: 'specific-correlation',
+  user: 'specific-user',
+  cmd: 'specific-command',
+  startId: 1000,
+  endId: 5000
+})) {
+  await processBatch(batch);
+}
+```
+
+### Bulk Operations
+
+High-performance bulk operations:
+
+```javascript
+// Bulk event insertion (40x faster than individual writes)
+const events = [
+  { cmd: 'createUser', data: { name: 'Alice' } },
+  { cmd: 'createUser', data: { name: 'Bob' } },
+  // ... many more events
+];
+
+const results = eventQueue.storeBulk(events, model, callbacks);
+
+// Bulk export/import utilities
+import { BulkOperations } from 'eventlite-sourcing';
+
+const bulkOps = new BulkOperations(eventQueue);
+
+// Export to JSON Lines format
+await bulkOps.exportToJSONL('events.jsonl', {
+  batchSize: 1000,
+  startId: 0,
+  correlationId: 'specific-correlation'
+});
+
+// Export to CSV format  
+await bulkOps.exportToCSV('events.csv', {
+  includeHeaders: true,
+  batchSize: 1000
+});
+
+// Import from JSON Lines
+const result = await bulkOps.importFromJSONL('events.jsonl', {
+  batchSize: 100,
+  validate: true,
+  skipErrors: false
+});
+
+// Batch processing with custom function
+await bulkOps.batchProcess(async (batch) => {
+  // Process each batch of events
+  return await analyzeEvents(batch);
+}, {
+  batchSize: 100,
+  parallel: true,
+  maxConcurrency: 4
+});
+
+// Get processing statistics
+const stats = await bulkOps.getProcessingStats();
+console.log({
+  totalEvents: stats.totalEvents,
+  eventsByCommand: stats.eventsByCommand,
+  dateRange: stats.dateRange
+});
+```
+
+### Background Jobs
+
+Event-driven background job processing:
+
+```javascript
+import { BackgroundJobQueue, EventJobProcessor } from 'eventlite-sourcing';
+
+// Create job queue
+const jobQueue = new BackgroundJobQueue({
+  maxHistorySize: 1000,
+  defaultTimeout: 30000,
+  processingIntervalMs: 1000
+});
+
+// Register job workers
+jobQueue.registerWorker('sendEmail', async (data, job) => {
+  await sendEmailService(data.recipient, data.subject, data.body);
+  return { emailSent: true, timestamp: Date.now() };
+}, {
+  timeout: 10000,
+  retryAttempts: 3,
+  retryDelay: 1000
+});
+
+// Start job processing
+jobQueue.start();
+
+// Create event-job processor
+const eventJobProcessor = new EventJobProcessor(eventQueue, jobQueue);
+
+// Map events to background jobs
+eventJobProcessor.onEvent('userRegistered', 'sendEmail', (eventRow) => ({
+  recipient: eventRow.data.email,
+  subject: 'Welcome!',
+  body: `Welcome ${eventRow.data.name}!`
+}));
+
+// Add jobs manually
+const jobId = jobQueue.addJob('sendEmail', {
+  recipient: 'user@example.com',
+  subject: 'Hello',
+  body: 'Hello World!'
+});
+
+// Schedule jobs
+const scheduledJobId = jobQueue.scheduleJob('sendEmail', data, Date.now() + 60000);
+
+// Recurring jobs
+const recurringJobId = jobQueue.scheduleRecurringJob('cleanup', {}, 3600000); // Every hour
+
+// Monitor job status
+const status = jobQueue.getJobStatus(jobId);
+const queueStats = jobQueue.getQueueStats();
+
+// Stop processing
+jobQueue.stop();
+```
+
+**Performance Configurations:**
+
+```javascript
+// High-volume ingestion (maximum write speed)
+const fastQueue = initQueue({
+  WAL: true,
+  indexes: { correlation_id: true, causation_id: true },
+  cache: { enabled: false }
+});
+
+// Balanced workload
+const balancedQueue = initQueue({
+  WAL: true,
+  indexes: { 
+    correlation_id: true, 
+    causation_id: true, 
+    cmd: true, 
+    datetime: true 
+  },
+  cache: { enabled: true, maxSize: 1000, ttl: 300000 }
+});
+
+// Query-optimized (maximum query performance)
+const queryQueue = initQueue({
+  WAL: true,
+  indexes: { 
+    correlation_id: true, 
+    causation_id: true, 
+    cmd: true, 
+    user: true, 
+    datetime: true, 
+    version: true,
+    correlation_cmd: true
+  },
+  cache: { enabled: true, maxSize: 5000, ttl: 600000 }
+});
 ```
 
 ## Model Configuration

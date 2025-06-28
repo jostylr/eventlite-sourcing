@@ -114,30 +114,76 @@ This document outlines planned enhancements and missing features for the EventLi
 ## Performance & Scalability
 
 ### 14. Query Optimization
-- [ ] Additional database indexes for relationship queries
-- [ ] Query result caching for expensive operations
-- [ ] Pagination support for large result sets
-- [ ] Streaming support for large event exports
+- [x] Additional database indexes for relationship queries
+  - [x] Configurable index system with 8 total indexes
+  - [x] Core indexes: correlation_id, causation_id
+  - [x] Performance indexes: cmd, user, datetime, version
+  - [x] Composite indexes: correlation_cmd, user_datetime
+  - [x] Index configuration options for balancing write/query performance
+- [x] Query result caching for expensive operations
+  - [x] LRU cache implementation with configurable size and TTL
+  - [x] Cached versions of retrieveByID and getTransaction methods
+  - [x] Cache statistics and management methods
+  - [x] Automatic cache invalidation on bulk operations
+- [x] Pagination support for large result sets
+  - [x] Paginated versions of all major query methods
+  - [x] Returns totalCount, hasMore, nextOffset metadata
+  - [x] Configurable limit/offset parameters
+  - [x] Count queries for accurate pagination
+- [x] Streaming support for large event exports
+  - [x] streamEvents() async generator for memory-efficient processing
+  - [x] Configurable batch sizes and filtering options
+  - [x] Support for correlation, user, command, and time-range filtering
 
 ### 15. Bulk Operations
-- [ ] Bulk event insertion utilities
-- [ ] Bulk data export/import tools
-- [ ] Batch processing for large datasets
-- [ ] Background job integration
+- [x] Bulk event insertion utilities
+  - [x] storeBulk() method for high-performance bulk inserts
+  - [x] Transaction-based bulk operations
+  - [x] Support for model execution and callbacks during bulk operations
+  - [x] Automatic cache clearing on bulk operations
+- [x] Bulk data export/import tools
+  - [x] BulkOperations utility class
+  - [x] Export to JSON Lines and CSV formats
+  - [x] Import from JSON Lines with validation and error handling
+  - [x] Progress tracking and comprehensive error reporting
+  - [x] Configurable batch sizes and validation options
+- [x] Batch processing for large datasets
+  - [x] batchProcess() method with custom processor functions
+  - [x] Parallel processing with configurable concurrency control
+  - [x] Progress tracking and error collection
+  - [x] Event migration utilities with dry-run support
+  - [x] Processing statistics and analysis tools
+- [x] Background job integration
+  - [x] BackgroundJobQueue with priority queues and retry mechanisms
+  - [x] Scheduled and recurring job support
+  - [x] EventJobProcessor for event-driven job triggering
+  - [x] Job status tracking and queue statistics
+  - [x] Configurable timeouts, retries, and concurrency limits
 
 ## Developer Experience
 
 ### 16. Enhanced Testing Utilities
-- [ ] Event relationship testing helpers
-- [ ] GDPR compliance testing framework
-- [ ] File handling test utilities
-- [ ] Performance benchmarking tools
+- [x] Event relationship testing helpers
+- [x] GDPR compliance testing framework
+- [x] File handling test utilities
+- [x] Performance benchmarking tools
+  - [x] Write performance testing suite
+  - [x] Index configuration impact analysis
+  - [x] Bulk operation performance comparison
+  - [x] WAL mode performance testing
+  - [x] Cache effectiveness monitoring
 
 ### 17. Documentation & Examples
-- [ ] File handling usage examples
-- [ ] GDPR implementation guide
-- [ ] Event relationship pattern examples
-- [ ] Performance optimization guide
+- [x] File handling usage examples
+- [x] GDPR implementation guide
+- [x] Event relationship pattern examples
+- [x] Performance optimization guide
+  - [x] Comprehensive Performance Guide with write performance analysis
+  - [x] Index configuration strategies and recommendations
+  - [x] Three performance profiles (high-volume, balanced, query-optimized)
+  - [x] Configuration examples and best practices
+  - [x] Monitoring and benchmarking guidelines
+  - [x] Troubleshooting performance issues
 
 ### 18. Developer Tools
 - [ ] Event relationship visualizer

@@ -75,6 +75,17 @@ export interface EventCallbacks {
 }
 
 // Queue Options
+export interface IndexConfiguration {
+  correlation_id?: boolean;
+  causation_id?: boolean;
+  cmd?: boolean;
+  user?: boolean;
+  datetime?: boolean;
+  version?: boolean;
+  correlation_cmd?: boolean;
+  user_datetime?: boolean;
+}
+
 export interface QueueOptions {
   dbName?: string;
   init?: {
@@ -87,9 +98,12 @@ export interface QueueOptions {
     timeCost?: number;
   };
   noWAL?: boolean;
+  WAL?: boolean;
   risky?: boolean;
   reset?: boolean;
   datetime?: () => number;
+  cache?: CacheOptions;
+  indexes?: IndexConfiguration;
 }
 
 // Event Context for storeWithContext
@@ -576,6 +590,303 @@ export declare class EventQueryEngine {
   getEventsByCorrelationId(correlationId: string): EventRow[];
 
   close(): void;
+}
+
+// Performance and Pagination Types
+export interface PaginatedResult<T> {
+  events: T[];
+  totalCount: number;
+  hasMore: boolean;
+  nextOffset: number | null;
+}
+
+export interface PaginationOptions {
+  limit?: number;
+  offset?: number;
+}
+
+export interface CacheOptions {
+  enabled?: boolean;
+  maxSize?: number;
+  ttl?: number;
+}
+
+export interface CacheStats {
+  enabled: boolean;
+  size?: number;
+  maxSize?: number;
+  ttl?: number;
+}
+
+export interface StreamingOptions {
+  batchSize?: number;
+  startId?: number;
+  endId?: number | null;
+  correlationId?: string | null;
+  user?: string | null;
+  cmd?: string | null;
+}
+
+// Bulk Operations Types
+export interface BulkExportOptions {
+  batchSize?: number;
+  startId?: number;
+  endId?: number | null;
+  correlationId?: string | null;
+  user?: string | null;
+  cmd?: string | null;
+  includeMetadata?: boolean;
+  includeHeaders?: boolean;
+}
+
+export interface BulkImportOptions {
+  batchSize?: number;
+  validate?: boolean;
+  skipErrors?: boolean;
+  model?: Model | null;
+  callbacks?: EventCallbacks | null;
+}
+
+export interface BulkImportResult {
+  success: boolean;
+  totalImported: number;
+  totalErrors: number;
+  errors: Array<{ line?: string; batch?: number; error: string }>;
+}
+
+export interface BatchProcessingOptions {
+  batchSize?: number;
+  startId?: number;
+  endId?: number | null;
+  correlationId?: string | null;
+  user?: string | null;
+  cmd?: string | null;
+  parallel?: boolean;
+  maxConcurrency?: number;
+}
+
+export interface BatchProcessingResult {
+  success: boolean;
+  totalProcessed: number;
+  totalErrors: number;
+  errors: Array<{ batch: number; error: string }>;
+}
+
+export interface ProcessingStats {
+  totalEvents: number;
+  eventsByCommand: Record<string, number>;
+  eventsByUser: Record<string, number>;
+  eventsByVersion: Record<string, number>;
+  dateRange: { min: number | null; max: number | null };
+  uniqueCorrelations: number;
+  rootEvents: number;
+  childEvents: number;
+}
+
+// Background Job Types
+export interface JobOptions {
+  delay?: number;
+  maxAttempts?: number;
+  priority?: number;
+  timeout?: number;
+}
+
+export interface JobWorkerOptions {
+  timeout?: number;
+  retryAttempts?: number;
+  retryDelay?: number;
+}
+
+export interface Job {
+  id: string;
+  type: string;
+  data: Record<string, any>;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  createdAt: number;
+  scheduledAt: number;
+  startedAt?: number;
+  completedAt?: number;
+  duration?: number;
+  attempts: number;
+  maxAttempts: number;
+  priority: number;
+  timeout: number;
+  result?: any;
+  error?: string;
+  recurringId?: NodeJS.Timeout;
+}
+
+export interface JobStatus {
+  id: string;
+  type: string;
+  status: string;
+  attempts: number;
+  maxAttempts: number;
+  createdAt: number;
+  scheduledAt: number;
+  startedAt?: number;
+  completedAt?: number;
+  duration?: number;
+  error?: string;
+}
+
+export interface QueueStats {
+  total: number;
+  pending: number;
+  running: number;
+  byType: Record<string, number>;
+  oldestPending: number | null;
+  recentCompletion: {
+    completed: number;
+    failed: number;
+    averageDuration: number;
+  };
+}
+
+// Enhanced EventQueue interface with performance methods
+export interface EventQueue {
+  // Existing methods...
+  retrieveByID(id: number): EventRow | null;
+  store(event: EventData, model?: Model, callbacks?: EventCallbacks): EventRow;
+  execute(row: EventRow, model: Model, callbacks: EventCallbacks): any;
+  cycleThrough(
+    model: Model,
+    doneCB: () => void,
+    whileCB?: EventCallbacks,
+    options?: { start?: number; stop?: number | null }
+  ): void;
+  getTransaction(correlationId: string): EventRow[];
+  getChildEvents(eventId: number): EventRow[];
+  getEventLineage(eventId: number): any;
+  storeWithContext(
+    eventData: EventData,
+    context: Record<string, any>,
+    model?: Model,
+    callbacks?: EventCallbacks
+  ): EventRow;
+
+  // Cached methods
+  retrieveByIDCached(id: number): EventRow | null;
+  getTransactionCached(correlationId: string): EventRow[];
+
+  // Paginated methods
+  getByCorrelationIdPaginated(
+    correlationId: string,
+    options?: PaginationOptions
+  ): PaginatedResult<EventRow>;
+  getChildEventsPaginated(
+    eventId: number,
+    options?: PaginationOptions
+  ): PaginatedResult<EventRow>;
+  getEventsByUserPaginated(
+    user: string,
+    options?: PaginationOptions
+  ): PaginatedResult<EventRow>;
+  getEventsByCmdPaginated(
+    cmd: string,
+    options?: PaginationOptions
+  ): PaginatedResult<EventRow>;
+  getEventsInTimeRangePaginated(
+    start: number,
+    end: number,
+    options?: PaginationOptions
+  ): PaginatedResult<EventRow>;
+
+  // Bulk operations
+  storeBulk(
+    events: EventData[],
+    model?: Model,
+    callbacks?: EventCallbacks
+  ): Array<{ row: EventRow; result: any }>;
+
+  // Streaming
+  streamEvents(options?: StreamingOptions): AsyncGenerator<EventRow[], void, unknown>;
+
+  // Cache management
+  clearCache(): void;
+  getCacheStats(): CacheStats;
+}
+
+// Bulk Operations Class
+export class BulkOperations {
+  constructor(eventQueue: EventQueue);
+
+  exportToJSONL(filePath: string, options?: BulkExportOptions): Promise<{ success: boolean; totalExported: number }>;
+  importFromJSONL(filePath: string, options?: BulkImportOptions): Promise<BulkImportResult>;
+  exportToCSV(filePath: string, options?: BulkExportOptions): Promise<{ success: boolean; totalExported: number }>;
+  batchProcess(
+    processorFn: (batch: EventRow[]) => Promise<any>,
+    options?: BatchProcessingOptions
+  ): Promise<BatchProcessingResult>;
+  migrateEvents(
+    migrationFn: (event: EventRow, targetVersion: number) => Promise<EventRow>,
+    options?: { batchSize?: number; targetVersion?: number; dryRun?: boolean }
+  ): Promise<{
+    totalProcessed: number;
+    totalMigrated: number;
+    errors: Array<{ eventId: number; error: string }>;
+    dryRun: boolean;
+  }>;
+  getProcessingStats(options?: {
+    startId?: number;
+    endId?: number | null;
+    timeRange?: { start: number; end: number } | null;
+  }): Promise<ProcessingStats>;
+}
+
+// Background Job Classes
+export class BackgroundJobQueue {
+  constructor(options?: {
+    maxHistorySize?: number;
+    defaultTimeout?: number;
+    processingIntervalMs?: number;
+  });
+
+  registerWorker(
+    jobType: string,
+    workerFn: (data: Record<string, any>, job: Job) => Promise<any>,
+    options?: JobWorkerOptions
+  ): void;
+
+  addJob(
+    jobType: string,
+    data?: Record<string, any>,
+    options?: JobOptions
+  ): string;
+
+  scheduleJob(
+    jobType: string,
+    data: Record<string, any>,
+    scheduledTime: number,
+    options?: JobOptions
+  ): string;
+
+  scheduleRecurringJob(
+    jobType: string,
+    data: Record<string, any>,
+    intervalMs: number,
+    options?: JobOptions
+  ): string;
+
+  start(): void;
+  stop(): void;
+  getJobStatus(jobId: string): JobStatus | null;
+  getQueueStats(): QueueStats;
+  cancelJob(jobId: string): boolean;
+  clearHistory(): void;
+}
+
+export class EventJobProcessor {
+  constructor(eventQueue: EventQueue, jobQueue: BackgroundJobQueue);
+
+  onEvent(
+    eventCmd: string,
+    jobType: string,
+    dataMapper?: (eventData: Record<string, any>, eventRow: EventRow) => Record<string, any>
+  ): void;
+
+  processEvent(eventData: Record<string, any>, eventRow: EventRow): string[];
+  createEventCallback(): EventCallbacks;
 }
 
 // Main exports
