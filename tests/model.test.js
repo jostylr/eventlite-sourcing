@@ -36,7 +36,10 @@ describe("Model Setup", () => {
 
   describe("Basic initialization", () => {
     test("should create model with default options", () => {
-      model = modelSetup({ dbName: testDbPath });
+      model = modelSetup({ 
+        dbName: testDbPath,
+        default: () => "", // Silent default for unknown commands
+      });
 
       expect(model).toBeDefined();
       expect(model._db).toBeDefined();
@@ -49,7 +52,10 @@ describe("Model Setup", () => {
     });
 
     test("should create stub model when stub option is true", () => {
-      model = modelSetup({ stub: true });
+      model = modelSetup({ 
+        stub: true,
+        default: () => "", // Silent default for unknown commands
+      });
 
       expect(model).toBeDefined();
       expect(model._queries).toEqual({});
@@ -72,6 +78,7 @@ describe("Model Setup", () => {
       model = modelSetup({
         dbName: testDbPath,
         WAL: true,
+        default: () => "", // Silent default for unknown commands
       });
 
       expect(model).toBeDefined();
@@ -88,6 +95,7 @@ describe("Model Setup", () => {
       model = modelSetup({
         dbName: testDbPath,
         tables: tablesFunc,
+        default: () => "", // Silent default for unknown commands
       });
 
       expect(tablesCalled).toBe(true);
@@ -97,7 +105,10 @@ describe("Model Setup", () => {
   describe("Reset functionality", () => {
     test("should move database to old file with empty reset array", () => {
       // Create initial database
-      model = modelSetup({ dbName: testDbPath });
+      model = modelSetup({ 
+        dbName: testDbPath,
+        default: () => "", // Silent default for unknown commands
+      });
       model._db.close();
 
       expect(existsSync(testDbPath)).toBe(true);
@@ -106,6 +117,7 @@ describe("Model Setup", () => {
       model = modelSetup({
         dbName: testDbPath,
         reset: [],
+        default: () => "", // Silent default for unknown commands
       });
 
       expect(existsSync(testDbPath)).toBe(true);
@@ -116,13 +128,17 @@ describe("Model Setup", () => {
       const customPath = join("tests", "data", "custom-backup.sqlite");
 
       // Create initial database
-      model = modelSetup({ dbName: testDbPath });
+      model = modelSetup({ 
+        dbName: testDbPath,
+        default: () => "", // Silent default for unknown commands
+      });
       model._db.close();
 
       // Reset with custom name
       model = modelSetup({
         dbName: testDbPath,
         reset: [customPath],
+        default: () => "", // Silent default for unknown commands
       });
 
       expect(existsSync(testDbPath)).toBe(true);
@@ -136,7 +152,10 @@ describe("Model Setup", () => {
 
     test("should delete database when reset array contains empty string", () => {
       // Create initial database
-      model = modelSetup({ dbName: testDbPath });
+      model = modelSetup({ 
+        dbName: testDbPath,
+        default: () => "", // Silent default for unknown commands
+      });
       model._db.close();
 
       expect(existsSync(testDbPath)).toBe(true);
@@ -145,6 +164,7 @@ describe("Model Setup", () => {
       model = modelSetup({
         dbName: testDbPath,
         reset: [""],
+        default: () => "", // Silent default for unknown commands
       });
 
       expect(existsSync(testDbPath)).toBe(true); // New one created
@@ -155,7 +175,10 @@ describe("Model Setup", () => {
       const newPath = join("tests", "data", "new-backup.sqlite");
 
       // Create initial database at old path
-      model = modelSetup({ dbName: oldPath });
+      model = modelSetup({ 
+        dbName: oldPath,
+        default: () => "", // Silent default for unknown commands
+      });
       model._db.close();
 
       expect(existsSync(oldPath)).toBe(true);
@@ -164,6 +187,7 @@ describe("Model Setup", () => {
       model = modelSetup({
         dbName: testDbPath,
         reset: [oldPath, newPath],
+        default: () => "", // Silent default for unknown commands
       });
 
       expect(existsSync(oldPath)).toBe(false);
@@ -200,6 +224,7 @@ describe("Model Setup", () => {
         },
         queries,
         methods,
+        default: () => "", // Silent default for unknown commands
       });
 
       expect(model.addItem).toBeFunction();
@@ -224,6 +249,7 @@ describe("Model Setup", () => {
         dbName: testDbPath,
         done: customDone,
         error: customError,
+        default: () => "", // Silent default for unknown commands
       });
 
       model._done({ cmd: "test" }, "result");
@@ -250,6 +276,7 @@ describe("Model Setup", () => {
           getUser: db.query("SELECT * FROM users WHERE name = $name"),
           getAllUsers: db.query("SELECT * FROM users"),
         }),
+        default: () => "", // Silent default for unknown commands
       });
     });
 
@@ -326,6 +353,7 @@ describe("Model Setup", () => {
             return { counter, value };
           },
         }),
+        default: () => "", // Silent default for unknown commands
       });
 
       // Test increment
@@ -360,7 +388,10 @@ describe("Model Setup", () => {
       const invalidPath = "/invalid/path/that/does/not/exist/db.sqlite";
 
       expect(() => {
-        model = modelSetup({ dbName: invalidPath });
+        model = modelSetup({ 
+          dbName: invalidPath,
+          default: () => "", // Silent default for unknown commands
+        });
       }).toThrow();
     });
 
@@ -374,6 +405,7 @@ describe("Model Setup", () => {
         model = modelSetup({
           dbName: testDbPath,
           tables: badTables,
+          default: () => "", // Silent default for unknown commands
         });
       }).toThrow();
     });
@@ -387,6 +419,7 @@ describe("Model Setup", () => {
         model = modelSetup({
           dbName: testDbPath,
           queries: badQueries,
+          default: () => "", // Silent default for unknown commands
         });
       }).toThrow("Query setup failed");
     });
@@ -405,6 +438,7 @@ describe("Model Setup", () => {
           dbName: testDbPath,
           queries,
           methods: badMethods,
+          default: () => "", // Silent default for unknown commands
         });
       }).toThrow("Method setup failed");
     });
@@ -416,7 +450,10 @@ describe("Model Setup", () => {
       const originalLog = console.log;
       console.log = (...args) => logs.push(args);
 
-      model = modelSetup({ dbName: testDbPath });
+      model = modelSetup({ 
+        dbName: testDbPath,
+        // This test specifically checks the default logging behavior
+      });
 
       const result = model._default({ test: "data" }, { cmd: "unknownCmd" });
 

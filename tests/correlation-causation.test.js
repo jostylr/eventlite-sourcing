@@ -326,6 +326,7 @@ describe("Correlation and Causation IDs", () => {
           },
         };
       },
+      default: () => "", // Silent default for unknown commands
     });
 
     // Store events

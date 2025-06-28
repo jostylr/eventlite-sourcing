@@ -118,6 +118,7 @@ describe("Event Sourcing Integration Tests", () => {
             return { accountId, balance: newBalance };
           },
         }),
+        default: () => "", // Silent default for unknown commands
       });
 
       // Set up callbacks
@@ -194,6 +195,7 @@ describe("Event Sourcing Integration Tests", () => {
             return { itemId, quantity: newQuantity };
           },
         }),
+        default: () => "", // Silent default for unknown commands
       });
 
       const cb = eventCallbacks.void;
@@ -251,6 +253,7 @@ describe("Event Sourcing Integration Tests", () => {
             return { itemId, quantity: newQuantity };
           },
         }),
+        default: () => "", // Silent default for unknown commands
       });
 
       // Replay all events
@@ -293,6 +296,7 @@ describe("Event Sourcing Integration Tests", () => {
             return "success";
           },
         }),
+        default: () => "", // Silent default for unknown commands
       });
 
       const errors = [];
@@ -368,6 +372,7 @@ describe("Event Sourcing Integration Tests", () => {
             return post;
           },
         }),
+        default: () => "", // Silent default for unknown commands
       });
 
       const auditLog = [];
@@ -471,6 +476,7 @@ describe("Event Sourcing Integration Tests", () => {
             return newValue;
           },
         }),
+        default: () => "", // Silent default for unknown commands
       });
 
       // Store a series of events

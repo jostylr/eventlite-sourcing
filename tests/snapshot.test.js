@@ -68,6 +68,7 @@ describe("Snapshot Functionality", () => {
           },
         };
       },
+      default: () => "", // Silent default for unknown commands
     });
 
     // Add some data
@@ -122,6 +123,7 @@ describe("Snapshot Functionality", () => {
           },
         };
       },
+      default: () => "", // Silent default for unknown commands
     });
 
     // Execute first 3 events
@@ -170,6 +172,7 @@ describe("Snapshot Functionality", () => {
           },
         };
       },
+      default: () => "", // Silent default for unknown commands
     });
 
     const restoreResult = await snapshots.restoreSnapshot(
@@ -203,6 +206,7 @@ describe("Snapshot Functionality", () => {
       tables(db) {
         db.query("CREATE TABLE test (id INTEGER PRIMARY KEY)").run();
       },
+      default: () => "", // Silent default for unknown commands
     });
 
     // Create multiple snapshots
@@ -225,6 +229,7 @@ describe("Snapshot Functionality", () => {
       tables(db) {
         db.query("CREATE TABLE test (id INTEGER PRIMARY KEY)").run();
       },
+      default: () => "", // Silent default for unknown commands
     });
 
     await snapshots.createSnapshot("test-model", 10, model);
@@ -244,6 +249,7 @@ describe("Snapshot Functionality", () => {
       tables(db) {
         db.query("CREATE TABLE test (id INTEGER PRIMARY KEY)").run();
       },
+      default: () => "", // Silent default for unknown commands
     });
 
     await snapshots.createSnapshot("test-model", 10, model);
@@ -320,6 +326,7 @@ describe("Snapshot Functionality", () => {
           },
         };
       },
+      default: () => "", // Silent default for unknown commands
     });
 
     // Create complex state
@@ -395,6 +402,7 @@ describe("Snapshot Functionality", () => {
           getAllPosts: db.query("SELECT * FROM posts"),
         };
       },
+      default: () => "", // Silent default for unknown commands
     });
 
     await snapshots.restoreModelState(freshModel, state);
@@ -426,6 +434,7 @@ describe("Snapshot Functionality", () => {
       tables(db) {
         db.query("CREATE TABLE test (id INTEGER PRIMARY KEY)").run();
       },
+      default: () => "", // Silent default for unknown commands
     });
 
     // Create snapshot
@@ -437,6 +446,7 @@ describe("Snapshot Functionality", () => {
       tables(db) {
         db.query("CREATE TABLE different (id INTEGER PRIMARY KEY)").run();
       },
+      default: () => "", // Silent default for unknown commands
     });
 
     const result = await snapshots.restoreSnapshot(
@@ -472,6 +482,7 @@ describe("Snapshot Functionality", () => {
           },
         };
       },
+      default: () => "", // Silent default for unknown commands
     });
 
     // Add first 3 events
@@ -517,6 +528,7 @@ describe("Snapshot Functionality", () => {
           },
         };
       },
+      default: () => "", // Silent default for unknown commands
     });
 
     // Restore snapshot

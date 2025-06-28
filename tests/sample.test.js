@@ -114,6 +114,7 @@ describe("Sample implementation", () => {
             },
           };
         },
+        default: () => "", // Silent default for unknown commands
       });
 
       evQ.reset();

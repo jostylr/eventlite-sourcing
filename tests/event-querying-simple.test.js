@@ -61,7 +61,8 @@ describe("EventQueryEngine Simple Tests", () => {
       // Set up a simple model
       const model = modelSetup({
         dbName: ":memory:",
-        stub: true
+        stub: true,
+        default: () => "", // Silent default for unknown commands
       });
 
       // Store a simple event

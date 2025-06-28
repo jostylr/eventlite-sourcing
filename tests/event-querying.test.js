@@ -23,7 +23,11 @@ describe("EventQueryEngine", () => {
     });
 
     // Create stub model
-    model = modelSetup({ dbName: ":memory:", stub: true });
+    model = modelSetup({ 
+      dbName: ":memory:", 
+      stub: true,
+      default: () => "", // Silent default for unknown commands
+    });
 
     // Create test events with relationships
     createTestEvents();

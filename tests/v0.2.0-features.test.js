@@ -227,6 +227,7 @@ describe("v0.2.0 Features Integration", () => {
           ],
         };
       },
+      default: () => "", // Silent default for unknown commands
     });
 
     // Scenario: Complete order workflow with all features

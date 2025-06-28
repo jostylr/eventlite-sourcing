@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { initQueue, eventCallbacks } from "../lib/event-source.js";
 import { existsSync, rmSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
+import { createTestModel, createSilentEventCallbacks } from "./helpers/test-helpers.js";
 
 describe("Event Source", () => {
   const testDbPath = join("tests", "data", "test-events.sqlite");
@@ -53,6 +54,7 @@ describe("Event Source", () => {
         testCmd: (data) => "success",
         _done: () => {},
         _error: () => {},
+        default: () => "", // Silent default for unknown commands
       };
 
       const mockCb = {
@@ -92,6 +94,7 @@ describe("Event Source", () => {
         testCmd: (data) => ({ result: "success", value: data.value }),
         _done: () => {},
         _error: () => {},
+        default: () => "", // Silent default for unknown commands
       };
 
       const results = [];
@@ -125,6 +128,7 @@ describe("Event Source", () => {
       const mockModel = {
         _done: () => {},
         _error: () => {},
+        default: () => "", // Silent default for unknown commands
       };
 
       const errors = [];
@@ -146,6 +150,7 @@ describe("Event Source", () => {
         testCmd: (data) => data,
         _done: () => {},
         _error: () => {},
+        default: () => "", // Silent default for unknown commands
       };
 
       const results = [];
@@ -184,6 +189,7 @@ describe("Event Source", () => {
         }),
         _done: () => {},
         _error: () => {},
+        default: () => "", // Silent default for unknown commands
       };
 
       const results = [];
@@ -252,6 +258,7 @@ describe("Event Source", () => {
         },
         _done: () => {},
         _error: () => {},
+        default: () => "", // Silent default for unknown commands
       };
 
       const errors = [];
@@ -283,6 +290,7 @@ describe("Event Source", () => {
         specialCmd: () => "special result",
         _done: () => {},
         _error: () => {},
+        default: () => "", // Silent default for unknown commands
       };
 
       const results = [];
@@ -323,6 +331,7 @@ describe("Event Source", () => {
         testCmd: () => "success",
         _done: () => {},
         _error: () => {},
+        default: () => "", // Silent default for unknown commands
       };
 
       const mockCb = {
@@ -367,6 +376,7 @@ describe("Event Source", () => {
         cmd3: () => "result3",
         _done: () => {},
         _error: () => {},
+        default: () => "", // Silent default for unknown commands
       };
 
       const storeCb = {
@@ -408,6 +418,7 @@ describe("Event Source", () => {
         cmd3: () => "result3",
         _done: () => {},
         _error: () => {},
+        default: () => "", // Silent default for unknown commands
       };
 
       const storeCb = {
@@ -442,6 +453,7 @@ describe("Event Source", () => {
       const mockModel = {
         _done: () => {},
         _error: () => {},
+        default: () => "", // Silent default for unknown commands
       };
 
       const executedEvents = [];
@@ -472,6 +484,7 @@ describe("Event Source", () => {
         testCmd: () => "success",
         _done: () => {},
         _error: () => {},
+        default: () => "", // Silent default for unknown commands
       };
 
       const mockCb = {
