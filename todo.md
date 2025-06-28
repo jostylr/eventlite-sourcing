@@ -53,28 +53,28 @@ This document outlines planned enhancements and missing features for the EventLi
 ## GDPR & Privacy Features
 
 ### 7. Standardized GDPR Helper Methods
-- [ ] `PrivacyManager` utility class with standard methods:
-  - [ ] `requestDataExport(userId)` - Export all user data
-  - [ ] `requestDataDeletion(userId)` - Delete user data (crypto-shredding)
-  - [ ] `requestDataPortability(userId)` - Data portability format
-  - [ ] `requestDataRectification(userId, corrections)` - Data correction
-  - [ ] `withdrawConsent(userId, consentType)` - Consent withdrawal
-  - [ ] `auditDataProcessing(userId)` - Show processing activities
+- [x] `PrivacyManager` utility class with standard methods:
+  - [x] `requestDataExport(userId)` - Export all user data
+  - [x] `requestDataDeletion(userId)` - Delete user data (crypto-shredding)
+  - [x] `requestDataPortability(userId)` - Data portability format
+  - [x] `requestDataRectification(userId, corrections)` - Data correction
+  - [x] `withdrawConsent(userId, consentType)` - Consent withdrawal
+  - [x] `auditDataProcessing(userId)` - Show processing activities
 
 ### 8. Enhanced Privacy Controls
-- [ ] Data classification automation
-- [ ] Consent management integration
-- [ ] Data retention policy enforcement
-- [ ] Privacy impact assessment helpers
-- [ ] Data breach notification utilities
-- [ ] Right to be forgotten automation
+- [x] Data classification automation
+- [x] Consent management integration
+- [x] Data retention policy enforcement
+- [x] Privacy impact assessment helpers
+- [x] Data breach notification utilities
+- [x] Right to be forgotten automation
 
 ### 9. Compliance Reporting
-- [ ] GDPR compliance dashboard
-- [ ] Data processing activity logs
-- [ ] Consent tracking and reporting
-- [ ] Data subject request tracking
-- [ ] Regulatory audit trail generation
+- [x] GDPR compliance dashboard
+- [x] Data processing activity logs
+- [x] Consent tracking and reporting
+- [x] Data subject request tracking
+- [x] Regulatory audit trail generation
 
 ## Event Relationship & Querying Features
 

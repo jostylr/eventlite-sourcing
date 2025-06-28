@@ -7,6 +7,9 @@ import { EventQueryEngine } from "./lib/event-querying.js";
 import { PreEventProcessor, PreEventChainBuilder, commonProcessors, PreEventProcessorWrapper } from "./lib/pre-event-processor.js";
 import { ExternalServiceIntegration, servicePresets } from "./lib/external-service-integration.js";
 import { DataGenerator, dataGenerators, defaultDataGenerator } from "./lib/data-generation.js";
+import { PrivacyManager, CryptoShredder, PersonalDataStore, ConsentManager, DataClassifier } from "./lib/privacy-manager.js";
+import { AutoDataClassifier, ConsentManagementSystem, DataRetentionPolicyManager, PrivacyImpactAssessment, DataBreachNotificationManager } from "./lib/privacy-controls.js";
+import ComplianceReportingManager, { ComplianceDashboard, DataProcessingActivityLogger, ConsentTrackingReporter, DataSubjectRequestTracker, RegulatoryAuditTrail } from "./lib/compliance-reporting.js";
 
 export {
   initQueue,
@@ -26,4 +29,23 @@ export {
   DataGenerator,
   dataGenerators,
   defaultDataGenerator,
+  // Privacy Management
+  PrivacyManager,
+  CryptoShredder,
+  PersonalDataStore,
+  ConsentManager,
+  DataClassifier,
+  // Enhanced Privacy Controls
+  AutoDataClassifier,
+  ConsentManagementSystem,
+  DataRetentionPolicyManager,
+  PrivacyImpactAssessment,
+  DataBreachNotificationManager,
+  // Compliance Reporting
+  ComplianceReportingManager,
+  ComplianceDashboard,
+  DataProcessingActivityLogger,
+  ConsentTrackingReporter,
+  DataSubjectRequestTracker,
+  RegulatoryAuditTrail,
 };
