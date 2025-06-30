@@ -3,6 +3,29 @@
 
 import { Database } from "bun:sqlite";
 
+// Wait Condition Types
+export interface WaitCondition {
+  pattern?: string;
+  correlationId?: string;
+  where?: Record<string, any>;
+  minCount?: number;
+}
+
+export interface CountCondition {
+  pattern?: string;
+  correlationId?: string;
+  count: number;
+  where?: Record<string, any>;
+}
+
+export interface WaitForConditions {
+  all?: WaitCondition[];
+  any?: WaitCondition[];
+  count?: CountCondition;
+  sequence?: WaitCondition[];
+  timeout?: number;
+}
+
 // Event Data Types
 export interface EventData {
   user?: string;
@@ -13,6 +36,8 @@ export interface EventData {
   correlationId?: string;
   causationId?: number;
   metadata?: Record<string, any>;
+  waitFor?: WaitForConditions;
+  timeout?: number;
 }
 
 export interface EventRow {
@@ -55,6 +80,30 @@ export interface ErrorObject {
   causation_id: number | null;
   metadata: Record<string, any>;
   res?: any;
+}
+
+// Pending Event Types
+export interface PendingEvent {
+  id: number;
+  event_data: string;
+  wait_conditions: string;
+  created_at: number;
+  expires_at: number | null;
+  correlation_id: string;
+  status: 'pending' | 'ready' | 'expired' | 'executed' | 'cancelled';
+}
+
+export interface WaitConditionRow {
+  id: number;
+  pending_event_id: number;
+  condition_type: 'all_condition' | 'any_condition' | 'count_condition' | 'sequence_condition';
+  condition_data: string;
+  satisfied: boolean;
+}
+
+export interface PendingEventResult {
+  pendingEventId: number;
+  status: 'pending';
 }
 
 // Callback Types
@@ -142,6 +191,15 @@ export interface EventQueue {
     model: Model,
     callback: CallbackObject,
   ): Promise<any>;
+  
+  // Wait condition methods
+  storeWhen(event: EventData, model: Model, callback: CallbackObject): PendingEventResult | Promise<any>;
+  checkAllPendingEvents(): PendingEvent[];
+  executeReadyEvents(model: Model, callback: CallbackObject): { pendingEvent: PendingEvent; result: any }[];
+  expirePendingEvents(): PendingEvent[];
+  cancelPendingEvent(pendingEventId: number): boolean;
+  getPendingEventsByCorrelation(correlationId: string): PendingEvent[];
+  
   reset?: () => void; // Only available when risky: true
 }
 

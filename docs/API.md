@@ -10,9 +10,15 @@ This document provides a comprehensive reference for all functions, methods, and
   - [eventCallbacks](#eventcallbacks)
 - [Event Queue Methods](#event-queue-methods)
   - [store](#store)
+  - [storeWhen](#storewhen)
   - [execute](#execute)
   - [retrieveByID](#retrievebyid)
   - [cycleThrough](#cyclethrough)
+- [Wait Conditions](#wait-conditions)
+  - [Overview](#wait-conditions-overview)
+  - [API Reference](#wait-conditions-api)
+  - [Condition Types](#condition-types)
+  - [Examples](#wait-conditions-examples)
 - [Performance & Scalability](#performance--scalability)
   - [Index Configuration](#index-configuration)
   - [Query Caching](#query-caching)
@@ -249,6 +255,57 @@ await eventQueue.store({
 }, model, eventCallbacks.stub);
 ```
 
+### storeWhen
+
+Store an event with wait conditions. If wait conditions are provided, the event is stored as pending and executed only when all conditions are met. If no wait conditions are provided, behaves exactly like `store()`.
+
+```javascript
+storeWhen(
+  event: {
+    user?: string,
+    ip?: string,
+    cmd: string,
+    data?: object,
+    version?: number,
+    correlationId?: string,
+    causationId?: number,
+    metadata?: object,
+    waitFor?: WaitForConditions,
+    timeout?: number
+  },
+  model: Model,
+  callbacks: CallbackObject
+): PendingEventResult | Promise<any>
+```
+
+**Parameters:**
+- `event.waitFor` - Wait conditions that must be satisfied before execution
+- `event.timeout` - Optional timeout in milliseconds for pending events
+- All other parameters are the same as `store()`
+
+**Returns:**
+- If `waitFor` is provided: `{ pendingEventId: number, status: 'pending' }`
+- If `waitFor` is not provided: Same return value as `store()`
+
+**Example:**
+```javascript
+// Wait for payment AND inventory check
+const result = eventQueue.storeWhen({
+  cmd: 'processOrder',
+  data: { orderId: 123 },
+  correlationId: 'order-123',
+  waitFor: {
+    all: [
+      { pattern: 'paymentReceived', correlationId: 'order-123' },
+      { pattern: 'inventoryChecked', correlationId: 'order-123' }
+    ]
+  },
+  timeout: 60000 // 1 minute
+}, model, callbacks);
+
+console.log(result); // { pendingEventId: 1, status: 'pending' }
+```
+
 ### execute
 
 Execute a previously stored event.
@@ -422,6 +479,257 @@ storeWithContext(
 | `causationId` | `number` | Event ID that caused this |
 | `parentEventId` | `number` | Alternative to causationId |
 | `metadata` | `object` | Additional metadata to merge |
+
+## Wait Conditions
+
+### Wait Conditions Overview
+
+Wait conditions allow you to store events that execute only after specific prerequisite events have occurred. This enables complex multi-step workflows while maintaining the event sourcing pattern's integrity.
+
+**Key Benefits:**
+- **Declarative**: Express complex dependencies clearly in event metadata
+- **Non-blocking**: Pending events don't block the main event flow
+- **Flexible**: Support for AND, OR, count, and sequence dependencies
+- **Timeout Support**: Automatic cleanup of expired pending events
+- **Replay Safe**: Works correctly during event replay scenarios
+
+### Wait Conditions API
+
+#### checkAllPendingEvents()
+
+Check all pending events and mark any with satisfied conditions as ready for execution.
+
+```javascript
+checkAllPendingEvents(): PendingEvent[]
+```
+
+**Returns:** Array of events that are now ready for execution.
+
+#### executeReadyEvents()
+
+Execute all events that have satisfied wait conditions.
+
+```javascript
+executeReadyEvents(model: Model, callbacks: CallbackObject): ExecutedEvent[]
+```
+
+**Returns:** Array of `{ pendingEvent, result }` objects for executed events.
+
+#### expirePendingEvents()
+
+Mark expired pending events based on their timeout settings.
+
+```javascript
+expirePendingEvents(): PendingEvent[]
+```
+
+**Returns:** Array of events that were marked as expired.
+
+#### cancelPendingEvent()
+
+Cancel a pending event, preventing it from executing even if conditions are met.
+
+```javascript
+cancelPendingEvent(pendingEventId: number): boolean
+```
+
+**Returns:** `true` if successfully cancelled, `false` if event not found or already processed.
+
+#### getPendingEventsByCorrelation()
+
+Get all pending events for a specific correlation ID.
+
+```javascript
+getPendingEventsByCorrelation(correlationId: string): PendingEvent[]
+```
+
+### Condition Types
+
+#### All Conditions (AND Logic)
+
+All specified conditions must be satisfied for the event to execute.
+
+```javascript
+waitFor: {
+  all: [
+    { pattern: 'paymentReceived', correlationId: 'order-123' },
+    { pattern: 'inventoryChecked', correlationId: 'order-123' },
+    { pattern: 'addressValidated', correlationId: 'order-123' }
+  ]
+}
+```
+
+#### Any Conditions (OR Logic)
+
+At least one of the specified conditions must be satisfied.
+
+```javascript
+waitFor: {
+  any: [
+    { pattern: 'managerApproved', correlationId: 'request-456' },
+    { pattern: 'directorApproved', correlationId: 'request-456' },
+    { pattern: 'adminOverride', correlationId: 'request-456' }
+  ]
+}
+```
+
+#### Count Conditions
+
+Wait for a specific number of events matching a pattern.
+
+```javascript
+waitFor: {
+  count: {
+    pattern: 'approved',
+    correlationId: 'loan-789',
+    count: 3,
+    where: { amount: { $gte: 1000 } } // Optional property filter
+  }
+}
+```
+
+#### Sequence Conditions
+
+Wait for events to occur in a specific order.
+
+```javascript
+waitFor: {
+  sequence: [
+    { pattern: 'step1Complete', correlationId: 'workflow-321' },
+    { pattern: 'step2Complete', correlationId: 'workflow-321' },
+    { pattern: 'step3Complete', correlationId: 'workflow-321' }
+  ]
+}
+```
+
+#### Mixed Conditions
+
+Combine multiple condition types for complex dependencies.
+
+```javascript
+waitFor: {
+  all: [
+    { pattern: 'managerApproved', correlationId: 'request-999' }
+  ],
+  any: [
+    { pattern: 'directorApproved', correlationId: 'request-999' },
+    { pattern: 'adminOverride', correlationId: 'request-999' }
+  ]
+}
+```
+
+#### Property Filtering
+
+Use `where` clauses with comparison operators to filter events by their data properties.
+
+**Supported Operators:**
+- `$eq`: Equal to
+- `$ne`: Not equal to  
+- `$gt`: Greater than
+- `$gte`: Greater than or equal to
+- `$lt`: Less than
+- `$lte`: Less than or equal to
+
+```javascript
+waitFor: {
+  count: {
+    pattern: 'bidReceived',
+    correlationId: 'auction-555',
+    count: 5,
+    where: {
+      amount: { $gte: 100 },
+      verified: { $eq: true }
+    }
+  }
+}
+```
+
+### Wait Conditions Examples
+
+#### Order Processing Workflow
+
+```javascript
+// 1. Create order
+await eventQueue.store({
+  cmd: 'createOrder',
+  data: { userId: 'user123', items: ['item1', 'item2'] },
+  correlationId: 'order-456'
+}, model, callbacks);
+
+// 2. Store event that waits for payment and inventory
+const waitResult = eventQueue.storeWhen({
+  cmd: 'processOrder',
+  data: { orderId: 456 },
+  correlationId: 'order-456',
+  waitFor: {
+    all: [
+      { pattern: 'paymentReceived', correlationId: 'order-456' },
+      { pattern: 'inventoryVerified', correlationId: 'order-456' }
+    ]
+  },
+  timeout: 1800000 // 30 minutes
+}, model, callbacks);
+
+// 3. When payment is received
+await eventQueue.store({
+  cmd: 'paymentReceived',
+  data: { orderId: 456, amount: 99.99, method: 'card' },
+  correlationId: 'order-456',
+  causationId: 1 // Caused by createOrder
+}, model, callbacks);
+
+// 4. When inventory is verified  
+await eventQueue.store({
+  cmd: 'inventoryVerified',
+  data: { orderId: 456, available: true },
+  correlationId: 'order-456',
+  causationId: 1 // Caused by createOrder
+}, model, callbacks);
+
+// 5. processOrder event now executes automatically
+```
+
+#### Approval Workflow
+
+```javascript
+// Require both manager approval AND (director approval OR admin override)
+eventQueue.storeWhen({
+  cmd: 'processExpense',
+  data: { expenseId: 789, amount: 5000 },
+  correlationId: 'expense-789',
+  waitFor: {
+    all: [
+      { pattern: 'managerApproved', correlationId: 'expense-789' }
+    ],
+    any: [
+      { pattern: 'directorApproved', correlationId: 'expense-789' },
+      { pattern: 'adminOverride', correlationId: 'expense-789' }
+    ]
+  }
+}, model, callbacks);
+```
+
+#### Manual Event Processing
+
+```javascript
+// Check for ready events manually
+const readyEvents = eventQueue.checkAllPendingEvents();
+console.log(`${readyEvents.length} events ready for execution`);
+
+// Execute ready events
+const executedEvents = eventQueue.executeReadyEvents(model, callbacks);
+console.log(`Executed ${executedEvents.length} pending events`);
+
+// Clean up expired events
+const expiredEvents = eventQueue.expirePendingEvents();
+console.log(`${expiredEvents.length} events expired`);
+
+// Cancel a specific pending event
+const cancelled = eventQueue.cancelPendingEvent(pendingEventId);
+if (cancelled) {
+  console.log('Event cancelled successfully');
+}
+```
 
 ## Snapshot API
 
