@@ -889,6 +889,276 @@ export class EventJobProcessor {
   createEventCallback(): EventCallbacks;
 }
 
+// Developer Tools Types
+export interface VisualizationOptions {
+  format?: 'tree' | 'graph' | 'timeline' | 'flowchart';
+  includeData?: boolean;
+  showDepth?: boolean;
+  showMetrics?: boolean;
+  groupByType?: boolean;
+}
+
+export interface EventVisualization {
+  correlationId: string;
+  format: string;
+  events: number;
+  generatedAt: string;
+  content: string;
+}
+
+export interface ComplianceCheckOptions {
+  userId?: string | null;
+  checkDataIntegrity?: boolean;
+  checkRetentionPolicies?: boolean;
+  checkConsentTracking?: boolean;
+  checkDataClassification?: boolean;
+  generateReport?: boolean;
+}
+
+export interface ComplianceIssue {
+  type: string;
+  severity: 'HIGH' | 'MEDIUM' | 'LOW';
+  message: string;
+  recommendation?: string;
+  component?: string;
+}
+
+export interface ComplianceCheckResult {
+  passed: boolean;
+  issues: ComplianceIssue[];
+  details?: Record<string, any>;
+}
+
+export interface ComplianceResults {
+  timestamp: string;
+  userId?: string | null;
+  overallCompliance: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | 'UNKNOWN';
+  checks: {
+    dataIntegrity: ComplianceCheckResult | null;
+    retentionPolicies: ComplianceCheckResult | null;
+    consentTracking: ComplianceCheckResult | null;
+    dataClassification: ComplianceCheckResult | null;
+    cryptoShredding: ComplianceCheckResult | null;
+    auditTrail: ComplianceCheckResult | null;
+  };
+  issues: ComplianceIssue[];
+  recommendations: Array<{
+    priority: 'HIGH' | 'MEDIUM' | 'LOW';
+    category: string;
+    title: string;
+    description: string;
+    steps?: string[];
+  }>;
+  summary: {
+    complianceScore: number;
+    passedChecks: number;
+    totalChecks: number;
+    issueCount: number;
+    recommendationCount: number;
+  };
+}
+
+export interface DebugSessionOptions {
+  correlationId?: string | null;
+  eventId?: number | null;
+  timeRange?: { start: number; end: number } | null;
+  trackPerformance?: boolean;
+  verboseLogging?: boolean;
+}
+
+export interface DebugSession {
+  id: string;
+  startTime: Date;
+  options: DebugSessionOptions;
+  events: EventRow[];
+  analysis: Record<string, any>;
+  performance: Record<string, any>;
+  logs: Array<{
+    timestamp: string;
+    level: string;
+    message: string;
+  }>;
+  status: 'ACTIVE' | 'COMPLETED';
+}
+
+export interface ChainAnalysis {
+  chains: Array<{
+    rootEvent: number;
+    events: EventRow[];
+    length: number;
+    truncated: boolean;
+    issues: string[];
+  }>;
+  issues: Array<{
+    type: string;
+    severity: 'HIGH' | 'MEDIUM' | 'LOW';
+    message: string;
+    recommendation: string;
+  }>;
+  recommendations: Array<{
+    priority: 'HIGH' | 'MEDIUM' | 'LOW';
+    category: string;
+    message: string;
+    actions: string[];
+  }>;
+  statistics: {
+    totalChains: number;
+    averageChainLength: number;
+    longestChain: number;
+    totalIssues: number;
+    branchingFactor: number;
+  };
+}
+
+export interface ReplayAnomalies {
+  stateInconsistencies: any[];
+  orderingIssues: Array<{
+    type: string;
+    eventId: number;
+    causationId: number;
+    message: string;
+  }>;
+  missingEvents: Array<{
+    type: string;
+    eventId: number;
+    missingCausationId: number;
+    message: string;
+  }>;
+  duplicateEvents: Array<{
+    type: string;
+    eventIds: number[];
+    signature: string;
+    message: string;
+  }>;
+  recommendations: Array<{
+    category: string;
+    message: string;
+    impact: 'HIGH' | 'MEDIUM' | 'LOW';
+  }>;
+}
+
+export interface Migration {
+  id: string;
+  name: string;
+  description: string;
+  created: string;
+  status: 'PENDING' | 'COMPLETED' | 'FAILED';
+  up: {
+    sql: Array<{ id: string; sql: string; timestamp: string }>;
+    eventMigrations: Array<{
+      id: string;
+      fromVersion: number | null;
+      toVersion: number | null;
+      eventType: string | null;
+      transformation: ((data: any) => any) | null;
+      validator: ((data: any) => boolean) | null;
+      timestamp: string;
+    }>;
+    dataTransformations: any[];
+  };
+  down: {
+    sql: Array<{ id: string; sql: string; timestamp: string }>;
+    eventMigrations: Array<{
+      id: string;
+      fromVersion: number | null;
+      toVersion: number | null;
+      eventType: string | null;
+      transformation: ((data: any) => any) | null;
+      validator: ((data: any) => boolean) | null;
+      timestamp: string;
+    }>;
+    dataTransformations: any[];
+  };
+}
+
+export interface MigrationExecution {
+  migrationId: string;
+  direction: 'up' | 'down';
+  dryRun: boolean;
+  startTime: Date;
+  endTime?: Date;
+  steps: Array<{
+    type: 'SQL' | 'EVENT_MIGRATION' | 'DATA_TRANSFORMATION';
+    id: string;
+    success: boolean;
+    dryRun: boolean;
+    timestamp: string;
+    message?: string;
+    error?: any;
+  }>;
+  status: 'RUNNING' | 'COMPLETED' | 'FAILED';
+  errors: any[];
+}
+
+export interface HealthCheck {
+  timestamp: string;
+  overall: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | 'ERROR' | 'UNKNOWN';
+  checks: Record<string, any>;
+  recommendations: string[];
+}
+
+// Developer Tools Classes
+export class EventVisualizerPro {
+  constructor(dbPath: string);
+  
+  generateInteractiveEventMap(correlationId: string, options?: VisualizationOptions): EventVisualization;
+  close(): void;
+}
+
+export class GDPRComplianceChecker {
+  constructor(dbPath: string);
+  
+  runComplianceCheck(options?: ComplianceCheckOptions): Promise<ComplianceResults | string>;
+  close(): void;
+}
+
+export class EventSourcingDebugger {
+  constructor(dbPath: string);
+  
+  startDebugSession(sessionId: string, options?: DebugSessionOptions): DebugSession;
+  analyzeCausationChains(sessionId: string): ChainAnalysis;
+  detectReplayAnomalies(sessionId: string, expectedState?: any): ReplayAnomalies;
+  generateDebugReport(sessionId: string, format?: 'text' | 'json'): string;
+  endDebugSession(sessionId: string): DebugSession | undefined;
+  close(): void;
+}
+
+export class SchemaMigrationHelper {
+  constructor(dbPath: string);
+  
+  createMigration(name: string, description?: string): Migration;
+  addSQLMigration(migration: Migration, direction: 'up' | 'down', sql: string): Migration;
+  addEventMigration(migration: Migration, direction: 'up' | 'down', config: {
+    fromVersion?: number | null;
+    toVersion?: number | null;
+    eventType?: string | null;
+    transformation?: ((data: any) => any) | null;
+    validator?: ((data: any) => boolean) | null;
+  }): Migration;
+  executeMigration(migration: Migration, direction?: 'up' | 'down', dryRun?: boolean): Promise<MigrationExecution>;
+  getMigrationStatus(): {
+    applied: any[];
+    pending: any[];
+    total: number;
+    lastMigration: any | null;
+  };
+  rollbackLastMigration(dryRun?: boolean): Promise<any>;
+  generateMigrationTemplate(name: string, type?: 'schema' | 'event'): string;
+  close(): void;
+}
+
+export class DeveloperToolsSuite {
+  constructor(dbPath: string);
+  
+  visualizer: EventVisualizerPro;
+  complianceChecker: GDPRComplianceChecker;
+  debugger: EventSourcingDebugger;
+  migrationHelper: SchemaMigrationHelper;
+  
+  quickHealthCheck(): Promise<HealthCheck>;
+  close(): void;
+}
+
 // Main exports
 export function initQueue(options?: QueueOptions): EventQueue;
 export function modelSetup(options?: ModelOptions): Model;

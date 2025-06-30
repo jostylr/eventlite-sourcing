@@ -12,6 +12,7 @@ import { AutoDataClassifier, ConsentManagementSystem, DataRetentionPolicyManager
 import ComplianceReportingManager, { ComplianceDashboard, DataProcessingActivityLogger, ConsentTrackingReporter, DataSubjectRequestTracker, RegulatoryAuditTrail } from "./lib/compliance-reporting.js";
 import { BulkOperations } from "./lib/bulk-operations.js";
 import { BackgroundJobQueue, EventJobProcessor } from "./lib/background-jobs.js";
+import { EventVisualizerPro, GDPRComplianceChecker, EventSourcingDebugger, SchemaMigrationHelper, DeveloperToolsSuite } from "./lib/developer-tools.js";
 
 export {
   initQueue,
@@ -54,4 +55,10 @@ export {
   BulkOperations,
   BackgroundJobQueue,
   EventJobProcessor,
+  // Developer Tools
+  EventVisualizerPro,
+  GDPRComplianceChecker,
+  EventSourcingDebugger,
+  SchemaMigrationHelper,
+  DeveloperToolsSuite,
 };

@@ -186,10 +186,10 @@ This document outlines planned enhancements and missing features for the EventLi
   - [x] Troubleshooting performance issues
 
 ### 18. Developer Tools
-- [ ] Event relationship visualizer
-- [ ] GDPR compliance checker
-- [ ] Event sourcing debugger
-- [ ] Schema migration helpers
+- [x] Event relationship visualizer
+- [x] GDPR compliance checker
+- [x] Event sourcing debugger
+- [x] Schema migration helpers
 
 ## Integration Features
 
